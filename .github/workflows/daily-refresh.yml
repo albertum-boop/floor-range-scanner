@@ -1,0 +1,68 @@
+name: Daily floor scanner
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+      timezone: "Europe/Madrid"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild the latest finalized session
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/daily-refresh.yml"
+      - "scripts/refresh_data.py"
+      - "scanner/**"
+      - "tests/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-floor-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scanner/requirements.txt
+      - name: Install data dependencies
+        run: python -m pip install --disable-pip-version-check -r scanner/requirements.txt
+      - name: Verify calendar and publication guards
+        run: python -m unittest discover -s tests -v
+      - name: Download finalized prices and refresh the scanner
+        env:
+          FORCE_REFRESH: ${{ inputs.force }}
+        run: |
+          args=()
+          if [[ "$FORCE_REFRESH" == "true" ]]; then args+=(--force); fi
+          python scripts/refresh_data.py "${args[@]}"
+      - name: Validate the website build
+        run: npm run build
+      - name: Publish the new snapshot through the Vercel Git integration
+        run: |
+          git add public/data/current.json public/data/current.csv
+          if git diff --cached --quiet; then
+            echo "No new finalized market session."
+            exit 0
+          fi
+          session_date="$(python -c 'import json; print(json.load(open("public/data/current.json"))["as_of"])')"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "data: refresh floor scanner ${session_date}"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          echo "Published market session ${session_date}; Vercel deployment triggered." >> "$GITHUB_STEP_SUMMARY"

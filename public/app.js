@@ -23,14 +23,28 @@ function render(){
   $("rows").innerHTML=rows.map(x=>`<tr data-ticker="${esc(x.ticker)}"><td>${x.rank}</td><td><strong>${esc(x.ticker)}</strong>${REF.has(x.ticker)?'<small class="tag">REF</small>':''}</td><td>${status(x.state)}</td><td><b>${money(x.floor)}</b><small>→ ${money(x.floor_zone_high)}</small></td><td><strong>${x.visit_count}</strong><small>${x.touching_days} días</small></td><td><strong>${x.successful_rebounds}/${x.historical_visits}</strong><small>med. ${pct(x.median_bounce_pct)}</small></td><td>${x.visit_density_20.toFixed(1)}<small>/20 ses.</small></td><td>${money(x.last_close)}<small>${pct(x.day_return_pct,true)} día</small></td><td><strong>${pct(x.distance_to_floor_pct)}</strong></td><td>${money(x.suggested_stop)}</td></tr>`).join("");
   document.querySelectorAll("tbody tr[data-ticker]").forEach(tr=>tr.onclick=()=>showDrawer(DATA.candidates.find(x=>x.ticker===tr.dataset.ticker)));
 }
-async function init(){
+async function loadData(){
   const r=await fetch('/data/current.json',{cache:'no-store'});if(!r.ok)throw new Error('data');DATA=await r.json();
   $("asOfTop").textContent=`cierre ${date(DATA.as_of)}`;$("candidateCount").textContent=DATA.universe.candidates;$("universeText").textContent=`de ${DATA.universe.files_scanned.toLocaleString('es-ES')} tickers`;
   $("statTouching").textContent=DATA.state_counts.VISITANDO_SUELO||0;$("statFive").textContent=DATA.candidates.filter(x=>x.visit_count>=5).length;$("statPerfect").textContent=DATA.candidates.filter(x=>x.historical_visits>=3&&x.rebound_reliability_pct===100).length;$("statZone").textContent=`+${DATA.strategy.floor_zone_pct}%`;
   $("benchmarkButtons").innerHTML=["SES","APP","SGI"].map(t=>{const x=DATA.candidates.find(c=>c.ticker===t);return x?`<button data-bench="${t}"><b>${t}</b><span>${x.visit_count} visitas · F ${money(x.floor)}</span></button>`:""}).join("");
   document.querySelectorAll('[data-bench]').forEach(b=>b.onclick=()=>showDrawer(DATA.candidates.find(x=>x.ticker===b.dataset.bench)));
-  $("footerText").textContent=`Snapshot basado en velas diarias hasta ${date(DATA.as_of)}. Herramienta de investigación cuantitativa; los niveles no constituyen órdenes ni garantizan rebotes futuros.`;
+  const refreshInfo=DATA.generated_at?` Actualizado ${new Date(DATA.generated_at).toLocaleString('es-ES',{timeZone:'Europe/Madrid'})} (Madrid). Cobertura: ${DATA.quality.valid}/${DATA.quality.requested} símbolos; ${DATA.quality.excluded} excluidos por datos ausentes o incompletos. Actualización diaria programada a las 02:00 de Madrid.`:'';
+  $("footerText").textContent=`Velas diarias hasta ${date(DATA.as_of)}.${refreshInfo} Herramienta de investigación cuantitativa; los niveles no constituyen órdenes ni garantizan rebotes futuros.`;
+  render();
+}
+async function init(){
+  await loadData();
   ["search","stateFilter","minVisits","maxDist","sort"].forEach(id=>$(id).addEventListener(id==="search"?"input":"change",render));
-  $("methodBtn").onclick=()=>$("method").classList.toggle("hidden");$("overlay").onmousedown=e=>{if(e.target===$("overlay"))hideDrawer()};document.addEventListener('keydown',e=>{if(e.key==='Escape')hideDrawer()});render();
+  $("methodBtn").onclick=()=>$("method").classList.toggle("hidden");$("overlay").onmousedown=e=>{if(e.target===$("overlay"))hideDrawer()};document.addEventListener('keydown',e=>{if(e.key==='Escape')hideDrawer()});
+  let refreshing=false;
+  const refresh=async()=>{
+    if(document.hidden||refreshing)return;
+    refreshing=true;
+    try{await loadData()}catch{ $("asOfTop").textContent=`cierre ${date(DATA.as_of)} · actualización no disponible`; }
+    finally{refreshing=false}
+  };
+  setInterval(refresh,15*60*1000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});
 }
 init().catch(()=>{document.body.innerHTML='<main class="page"><h2>No se pudieron cargar los datos del escáner.</h2></main>'});
