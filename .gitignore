@@ -6,3 +6,5 @@ __pycache__/
 .env.*
 prices/
 prices.zip
+dist/
+node_modules/

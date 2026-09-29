@@ -1,6 +1,6 @@
 # Floor Visit Scanner — Vercel
 
-Aplicación estática, sin dependencias ni build step. Vercel puede desplegarla directamente como proyecto **Other / Static**.
+Aplicación estática, sin dependencias de servidor. Vercel puede desplegarla directamente como proyecto **Other / Static**.
 
 ## Estrategia
 - `F`: mínimo estructural del rango detectado.
@@ -14,13 +14,13 @@ Aplicación estática, sin dependencias ni build step. Vercel puede desplegarla 
 `public/data/current.json` contiene el snapshot con cierre 25/09/2026. El universo original tiene 2.430 tickers; el detector de revisitas se aplicó sobre el prefiltrado estructural del proyecto anterior y produjo 428 patrones.
 
 ## Despliegue
-Importar la carpeta/repo en Vercel. No necesita variables de entorno, paquetes npm ni comando de build.
+Importar la carpeta/repo en Vercel. No necesita variables de entorno ni paquetes externos. La compilación copia y valida los archivos estáticos.
 
 Repositorio: https://github.com/albertum-boop/floor-range-scanner
 
 1. En Vercel, crear un proyecto e importar este repositorio de GitHub.
 2. Framework Preset: **Other**. Root Directory: **./**.
-3. Dejar Build Command e Install Command vacíos; Output Directory: **public**.
+3. Build Command: **npm run build**. Install Command: vacío. Output Directory: **dist**.
 4. Pulsar **Deploy**. Los cambios posteriores en `main` se publicarán mediante la integración de GitHub.
 
 ## Actualizar datos
@@ -42,6 +42,6 @@ Después de actualizar, subir `public/data/current.json` y `public/data/current.
 
 ## Configuración estática explícita
 
-`vercel.json` fija `framework: null` (Other), omite instalación y compilación y publica sólo `public/`. El escáner Python de `scanner/` se ejecuta fuera del servidor web para preparar los datos; no es una función ni necesita un entrypoint HTTP.
+`vercel.json` fija `framework: null` (Other), omite la instalación y ejecuta `npm run build`, que valida y copia `public/` a `dist/`. El escáner Python de `scanner/` se ejecuta fuera del servidor web para preparar los datos; no es una función ni necesita un entrypoint HTTP.
 
 Para revisar la web localmente: `python -m http.server 8000 --directory public`.
