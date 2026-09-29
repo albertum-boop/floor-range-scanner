@@ -1,0 +1,36 @@
+const LABELS={VISITANDO_SUELO:"Visitando suelo",CERCA_DEL_SUELO:"Cerca del suelo",REBOTE_RECIENTE:"Rebote reciente",VIGILAR:"Vigilar"};
+const REF=new Set(["SES","APP","SGI"]);let DATA=null;
+const $=id=>document.getElementById(id);
+function money(v){const d=v<1?4:v<10?3:2;return new Intl.NumberFormat("es-ES",{style:"currency",currency:"USD",minimumFractionDigits:d,maximumFractionDigits:d}).format(v)}
+function pct(v,s=false){return `${s&&v>0?"+":""}${Number(v).toLocaleString("es-ES",{minimumFractionDigits:1,maximumFractionDigits:1})}%`}
+function date(v){const [y,m,d]=v.split("-");return `${d}/${m}/${y}`}
+function compact(v){return new Intl.NumberFormat("es-ES",{notation:"compact",maximumFractionDigits:1}).format(v)}
+function status(s){return `<span class="status s-${s.toLowerCase()}">${LABELS[s]}</span>`}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function showDrawer(x){
+  const a=new Date(x.first_visit).getTime(),b=new Date(x.as_of).getTime(),span=Math.max(1,b-a);
+  const dots=x.episodes.map((e,i)=>{const p=Math.max(1,Math.min(99,100*(new Date(e.test_date).getTime()-a)/span));return `<i class="visit ${e.successful_rebound?"success":"pending"}" style="left:${p}%" title="${e.test_date} · ${pct(e.bounce_pct,true)}"></i>`}).join("");
+  const eps=x.episodes.map(e=>`<div class="episode-row"><span>${date(e.test_date)}</span><strong>${money(e.low)}</strong><b class="${e.successful_rebound?"ok":"pending-text"}">${pct(e.bounce_pct,true)}</b><span>${money(e.bounce_high)}</span></div>`).join("");
+  $("drawer").innerHTML=`<button class="close" id="closeDrawer">×</button><div class="drawer-head"><div><p class="eyebrow">#${x.rank} · score ${x.score.toFixed(1)}</p><h2>${esc(x.ticker)} ${REF.has(x.ticker)?"<em>benchmark</em>":""}</h2></div>${status(x.state)}</div><div class="pricebox"><div><span>Cierre</span><strong>${money(x.last_close)}</strong><small>${pct(x.distance_to_floor_pct)} sobre F</small></div><div><span>Suelo F</span><strong>${money(x.floor)}</strong><small>zona hasta ${money(x.floor_zone_high)}</small></div></div><div class="visit-strip"><span class="zone-line"></span>${dots}</div><div class="metrics"><div><span>Visitas independientes</span><strong>${x.visit_count}</strong></div><div><span>Días tocando zona</span><strong>${x.touching_days}</strong></div><div><span>Rebotes ≥5%</span><strong>${x.successful_rebounds}/${x.historical_visits}</strong></div><div><span>Rebotes históricos</span><strong>${pct(x.rebound_reliability_pct)}</strong></div><div><span>Rebote mediano</span><strong>${pct(x.median_bounce_pct)}</strong></div><div><span>Densidad /20 sesiones</span><strong>${x.visit_density_20.toFixed(1)}</strong></div><div><span>Caída previa</span><strong>−${pct(x.decline_pct)}</strong></div><div><span>Liquidez mediana</span><strong>${compact(x.median_dollar_volume_20)} $</strong></div></div><section class="risk-card"><span>Referencia estructural</span><div><b>Entrada de interés</b><strong>${money(x.floor)}–${money(x.floor_zone_high)}</strong></div><div><b>SL bajo territorio visitado</b><strong>${money(x.suggested_stop)}</strong></div><p>El stop queda ${pct(x.stop_below_floor_pct)} por debajo del mínimo observado del patrón. Es una referencia para backtest, no una orden automática.</p></section><section><div class="section-title"><h3>Historial de visitas</h3><span>suelo → separación → regreso</span></div><div class="episode-table"><div class="episode-row head"><span>Visita</span><span>Mínimo</span><span>Salto</span><span>Máximo</span></div>${eps}</div></section>`;
+  $("overlay").classList.remove("hidden");$("closeDrawer").onclick=hideDrawer;
+}
+function hideDrawer(){ $("overlay").classList.add("hidden") }
+function render(){
+  const q=$("search").value.trim().toLowerCase(),st=$("stateFilter").value,minV=+$('minVisits').value,maxD=+$('maxDist').value,sort=$("sort").value;
+  let rows=DATA.candidates.filter(x=>(!q||x.ticker.toLowerCase().includes(q))&&(st==="TODOS"||x.state===st)&&x.visit_count>=minV&&x.distance_to_floor_pct<=maxD);
+  rows.sort((a,b)=>sort==="visits"?(b.visit_count-a.visit_count||b.score-a.score):sort==="distance"?(a.distance_to_floor_pct-b.distance_to_floor_pct):sort==="reliability"?(b.rebound_reliability_pct-a.rebound_reliability_pct||b.visit_count-a.visit_count):(b.score-a.score));
+  $("resultCount").textContent=rows.length;
+  $("rows").innerHTML=rows.map(x=>`<tr data-ticker="${esc(x.ticker)}"><td>${x.rank}</td><td><strong>${esc(x.ticker)}</strong>${REF.has(x.ticker)?'<small class="tag">REF</small>':''}</td><td>${status(x.state)}</td><td><b>${money(x.floor)}</b><small>→ ${money(x.floor_zone_high)}</small></td><td><strong>${x.visit_count}</strong><small>${x.touching_days} días</small></td><td><strong>${x.successful_rebounds}/${x.historical_visits}</strong><small>med. ${pct(x.median_bounce_pct)}</small></td><td>${x.visit_density_20.toFixed(1)}<small>/20 ses.</small></td><td>${money(x.last_close)}<small>${pct(x.day_return_pct,true)} día</small></td><td><strong>${pct(x.distance_to_floor_pct)}</strong></td><td>${money(x.suggested_stop)}</td></tr>`).join("");
+  document.querySelectorAll("tbody tr[data-ticker]").forEach(tr=>tr.onclick=()=>showDrawer(DATA.candidates.find(x=>x.ticker===tr.dataset.ticker)));
+}
+async function init(){
+  const r=await fetch('/data/current.json',{cache:'no-store'});if(!r.ok)throw new Error('data');DATA=await r.json();
+  $("asOfTop").textContent=`cierre ${date(DATA.as_of)}`;$("candidateCount").textContent=DATA.universe.candidates;$("universeText").textContent=`de ${DATA.universe.files_scanned.toLocaleString('es-ES')} tickers`;
+  $("statTouching").textContent=DATA.state_counts.VISITANDO_SUELO||0;$("statFive").textContent=DATA.candidates.filter(x=>x.visit_count>=5).length;$("statPerfect").textContent=DATA.candidates.filter(x=>x.historical_visits>=3&&x.rebound_reliability_pct===100).length;$("statZone").textContent=`+${DATA.strategy.floor_zone_pct}%`;
+  $("benchmarkButtons").innerHTML=["SES","APP","SGI"].map(t=>{const x=DATA.candidates.find(c=>c.ticker===t);return x?`<button data-bench="${t}"><b>${t}</b><span>${x.visit_count} visitas · F ${money(x.floor)}</span></button>`:""}).join("");
+  document.querySelectorAll('[data-bench]').forEach(b=>b.onclick=()=>showDrawer(DATA.candidates.find(x=>x.ticker===b.dataset.bench)));
+  $("footerText").textContent=`Snapshot basado en velas diarias hasta ${date(DATA.as_of)}. Herramienta de investigación cuantitativa; los niveles no constituyen órdenes ni garantizan rebotes futuros.`;
+  ["search","stateFilter","minVisits","maxDist","sort"].forEach(id=>$(id).addEventListener(id==="search"?"input":"change",render));
+  $("methodBtn").onclick=()=>$("method").classList.toggle("hidden");$("overlay").onmousedown=e=>{if(e.target===$("overlay"))hideDrawer()};document.addEventListener('keydown',e=>{if(e.key==='Escape')hideDrawer()});render();
+}
+init().catch(()=>{document.body.innerHTML='<main class="page"><h2>No se pudieron cargar los datos del escáner.</h2></main>'});

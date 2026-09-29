@@ -1,0 +1,16 @@
+{
+  "floor_zone_pct": 3.5,
+  "reset_pct": 5.0,
+  "search_sessions": 110,
+  "min_window_sessions": 15,
+  "min_visits": 3,
+  "min_successful_rebounds": 2,
+  "min_visit_span_sessions": 8,
+  "decline_threshold_pct": 10.0,
+  "decline_lookback_sessions": 50,
+  "min_dollar_volume": 2000000,
+  "near_floor_pct": 5.0,
+  "watch_floor_pct": 10.0,
+  "stop_floor_buffer_pct": 1.0,
+  "atr_stop_fraction": 0.25
+}

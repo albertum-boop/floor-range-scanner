@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#102e2d" />
+  <title>Floor Visit Scanner</title>
+  <meta name="description" content="Detector cuantitativo de suelos visitados repetidamente y rebotes posteriores." />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="mark">F</span><div><strong>Floor Visit</strong><small>SCANNER</small></div></div>
+    <div class="topmeta"><span id="asOfTop">cargando…</span><button id="methodBtn">Metodología</button></div>
+  </header>
+
+  <main class="page">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Revisitas de soporte tras caída</p>
+        <h1>El mismo suelo.<br><em>Muchas oportunidades.</em></h1>
+        <p>Detecta mínimos estructurales que el precio visita repetidamente. Una nueva visita sólo cuenta después de que el precio se haya separado al menos un 5% del suelo.</p>
+      </div>
+      <div class="hero-number"><strong id="candidateCount">—</strong><span>patrones detectados</span><small id="universeText">—</small></div>
+    </section>
+
+    <section id="method" class="method hidden">
+      <h3>Definición actual</h3>
+      <p><b>F</b> es el mínimo del rango detectado. La zona de visita es <b>[F, F·1,035]</b>. Días consecutivos en esa zona forman una sola visita. Para contar una visita posterior, el precio debe haberse separado antes al menos un <b>5%</b>. El ranking prima número de visitas, densidad temporal, rebotes históricos y proximidad actual.</p>
+      <p>El filtro previo exige una caída de al menos un 10% y liquidez mediana ≥ $2M/día. SES, APP y SGI se mantienen como referencias visuales. Los máximos intermedios no se penalizan: buscamos el suelo, no un rectángulo perfecto.</p>
+    </section>
+
+    <section class="benchmarks">
+      <div><span>REFERENCIAS</span><strong>SES · APP · SGI</strong></div>
+      <div id="benchmarkButtons" class="benchmark-buttons"></div>
+    </section>
+
+    <section class="stats">
+      <div><span>Visitando suelo</span><strong id="statTouching">—</strong></div>
+      <div><span>≥5 visitas</span><strong id="statFive">—</strong></div>
+      <div><span>Rebotes históricos: 100%</span><strong id="statPerfect">—</strong></div>
+      <div><span>Zona</span><strong id="statZone">—</strong></div>
+    </section>
+
+    <section class="controls">
+      <input id="search" placeholder="Buscar ticker…" />
+      <select id="stateFilter">
+        <option value="VISITANDO_SUELO">Visitando suelo</option>
+        <option value="CERCA_DEL_SUELO">Cerca del suelo</option>
+        <option value="REBOTE_RECIENTE">Rebote reciente</option>
+        <option value="VIGILAR">Vigilar</option>
+        <option value="TODOS">Todos los estados</option>
+      </select>
+      <label>Visitas mín. <input id="minVisits" type="number" min="3" max="12" value="4" /></label>
+      <label>Dist. máx. <input id="maxDist" type="number" min="0" max="40" value="8" />%</label>
+      <select id="sort">
+        <option value="score">Orden: score</option>
+        <option value="visits">Orden: visitas</option>
+        <option value="distance">Orden: proximidad</option>
+        <option value="reliability">Orden: rebotes históricos</option>
+      </select>
+    </section>
+
+    <div class="resultbar"><b id="resultCount">0</b> resultados con los filtros actuales</div>
+    <section class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Ticker</th><th>Estado</th><th>Suelo / zona</th><th>Visitas</th><th>Rebotes ≥5%</th><th>Densidad</th><th>Cierre</th><th>Dist. F</th><th>SL ref.</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </section>
+    <footer id="footerText">Herramienta de investigación cuantitativa.</footer>
+  </main>
+
+  <div id="overlay" class="overlay hidden">
+    <aside class="drawer" id="drawer"></aside>
+  </div>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>
