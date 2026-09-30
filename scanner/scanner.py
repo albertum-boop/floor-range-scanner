@@ -163,7 +163,8 @@ def evaluate_window(d,start,cfg):
     else: state="VIGILAR"
     high_all=d["High"].to_numpy(float); low_all=d["Low"].to_numpy(float)
     atr=atr20_arrays(high_all,low_all,closes)
-    buffer=max(cfg.stop_floor_buffer_pct/100*floor,cfg.atr_stop_fraction*atr); stop=floor-buffer
+    lowest_wick=float(np.min(lows))
+    buffer=max(cfg.stop_floor_buffer_pct/100*floor,cfg.atr_stop_fraction*atr); stop=lowest_wick-buffer
     visits_score=min(40,5*len(eps)); density_score=min(15,5*density); rel_score=15*reliability
     prox_score=max(0,25-2.5*max(dist,0)); fresh_score=max(0,10-1.5*age); score=visits_score+density_score+rel_score+prox_score+fresh_score
     return {"score":round(score,2),"state":state,"as_of":str(pd.Timestamp(current.Date).date()),
@@ -184,7 +185,7 @@ def evaluate_window(d,start,cfg):
         "recent_successful_rebounds":int(recent_success),
         "successful_rebounds":int(succ),"historical_visits":int(len(hist)),"rebound_reliability_pct":round(100*reliability,1),
         "median_bounce_pct":round(med,2),"decline_pct":round(decline,2),"prior_peak":round(prior_peak,6),
-        "median_dollar_volume_20":round(dv,2),"atr20":round(atr,6),"suggested_stop":round(stop,6),
+        "median_dollar_volume_20":round(dv,2),"atr20":round(atr,6),"lowest_wick":round(lowest_wick,6),"suggested_stop":round(stop,6),
         "stop_below_floor_pct":round(100*(1-stop/floor),2),"episodes":[{k:v for k,v in e.items() if not k.endswith("_idx")} for e in eps]}
 
 def best_candidate(d,cfg):

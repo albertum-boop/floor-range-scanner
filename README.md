@@ -9,6 +9,7 @@ Aplicación estática, sin dependencias de servidor. Vercel puede desplegarla di
 - El soporte se fija con las dos primeras pruebas, ambas con rebote ≥5% en 5 sesiones. No se recalcula como el mínimo de toda la ventana.
 - Ningún cierre por debajo del soporte; pruebas agrupadas dentro del 3,5%; banda inferior sin deterioro superior al 3,5%.
 - Amplitud del rango ≤25% y deriva del precio ≤min(8%, la mitad de la amplitud). El techo es el percentil 85 de los máximos.
+- El stop de referencia queda por debajo de la menor mecha de toda la base, con un margen de max(1% de F, 0,25·ATR20). Las mechas posteriores no desplazan el soporte F.
 - Una ruptura invalida esa base. Una base posterior debe cumplir otra vez todos los requisitos.
 - `VISITANDO_SUELO` requiere cerrar dentro de la zona, además de tocarla. El score se calcula sólo tras validar el rango.
 - La señal `CONFIRMACION_DIARIA` requiere contacto con soporte hoy o ayer, cierre alcista sobre el máximo anterior, proximidad ≤5% y recorrido hasta el techo ≥5%. Es una señal al cierre, sin asumir ejecución a ese precio; no se ha backtesteado. Una visita sin esa vela figura como `ESPERAR_REBOTE`.

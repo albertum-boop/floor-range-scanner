@@ -37,6 +37,14 @@ class RangeTests(unittest.TestCase):
         d = history(np.r_[np.tile(self.cycle, 4), [97, 94, 90]])
         self.assertIsNone(best_candidate(d, Config()))
 
+    def test_stop_is_below_later_wicks_without_moving_the_support(self):
+        d = history(np.tile(self.cycle, 4))
+        d.loc[d.index[-1], "Low"] = 99.0
+        item = best_candidate(d, Config())
+        self.assertIsNotNone(item)
+        self.assertAlmostEqual(item["floor"], 100.4)
+        self.assertLess(item["suggested_stop"], 99.0)
+
     def test_late_crash_cannot_create_historical_floor_tests(self):
         base = np.r_[np.tile(self.cycle, 4), [60, 62, 59, 57]]
         self.assertIsNone(best_candidate(history(base), Config()))
