@@ -63,6 +63,7 @@ def finalized_prices(raw, cutoff, sessions):
     if index.tz is not None:
         index = index.tz_localize(None)
     data["Date"] = index.normalize()
+    data = data.reset_index(drop=True)
     data = data.replace([np.inf, -np.inf], np.nan)
     data = clean_prices(data)
     data = data.loc[data.Date.isin(sessions) & (data.Date <= cutoff)].reset_index(drop=True)
@@ -116,7 +117,7 @@ def download_histories(symbols, cutoff, directory, batch_size=80, retries=3):
         print(f"Downloaded {min(offset + batch_size, len(symbols))}/{len(symbols)}; valid {len(good)}", flush=True)
         # Stop early if the feed is entirely unavailable; preserve the published data.
         if offset == 0 and not good:
-            raise RuntimeError("Yahoo returned no usable histories in the first batch")
+            raise RuntimeError(f"No usable histories in first batch: {dict(list(errors.items())[:5])}")
     return good, errors
 
 

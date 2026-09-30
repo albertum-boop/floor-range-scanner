@@ -18,17 +18,20 @@
     <section class="hero">
       <div>
         <p class="eyebrow">Revisitas de soporte tras caída</p>
-        <h1>El mismo suelo.<br><em>Muchas oportunidades.</em></h1>
-        <p>Detecta mínimos estructurales que el precio visita repetidamente. Una nueva visita sólo cuenta después de que el precio se haya separado al menos un 5% del suelo.</p>
+        <h1>Después de la caída.<br><em>Un suelo que se mantiene.</em></h1>
+        <p>Busca rangos laterales después de una caída, con soporte estable y visitas independientes. Abre cada ticker para ver el precio diario, el suelo y el techo.</p>
       </div>
       <div class="hero-number"><strong id="candidateCount">—</strong><span>patrones detectados</span><small id="universeText">—</small></div>
     </section>
 
     <section id="method" class="method hidden">
       <h3>Definición actual</h3>
-      <p><b>F</b> es el mínimo del rango detectado. La zona de visita es <b>[F, F·1,035]</b>. Días consecutivos en esa zona forman una sola visita. Para contar una visita posterior, el precio debe haberse separado antes al menos un <b>5%</b>. El ranking prima número de visitas, densidad temporal, rebotes históricos y proximidad actual.</p>
-      <p>El filtro previo exige una caída de al menos un 10% y liquidez mediana ≥ $2M/día. SES, APP y SGI se mantienen como referencias visuales. Los máximos intermedios no se penalizan: buscamos el suelo, no un rectángulo perfecto.</p>
+      <p>Primero exige una caída de al menos <b>12%</b> respecto al máximo de cierre de las 20 sesiones anteriores al inicio de la base. Después exige al menos <b>15 sesiones</b> y <b>3 visitas independientes</b>. Las dos primeras pruebas deben rebotar ≥5% en un máximo de 5 sesiones; fijan el soporte <b>F</b>. Una nueva visita requiere que antes el precio salga de la zona y se separe ≥5%.</p>
+      <p>Se rechazan cierres posteriores por debajo de F, pruebas de suelo dispersas más de 3,5%, deterioro de la banda inferior y rangos de amplitud superior al 25%. La deriva de la recta de tendencia del precio se limita al menor valor entre 8% y la mitad de la amplitud del rango. El techo es el percentil 85 de los máximos. Liquidez mediana ≥ $2M/día.</p>
+      <p>El score sólo ordena patrones que ya superan esas reglas. «Visitando suelo» exige cerrar dentro de [F, F·1,035]; no constituye una confirmación de compra. Las referencias SES, APP y SGI sólo aparecen si cumplen el filtro en la fecha mostrada.</p>
     </section>
+
+    <section id="validationNotice" class="method hidden" role="status"><b>Clasificación anterior retirada.</b> Los resultados anteriores no comprobaban suficientemente la lateralidad. Se mostrarán nuevos tickers cuando termine el análisis con el detector corregido.</section>
 
     <section class="benchmarks">
       <div><span>REFERENCIAS</span><strong>SES · APP · SGI</strong></div>
@@ -51,7 +54,7 @@
         <option value="VIGILAR">Vigilar</option>
         <option value="TODOS">Todos los estados</option>
       </select>
-      <label>Visitas mín. <input id="minVisits" type="number" min="3" max="12" value="4" /></label>
+      <label>Visitas mín. <input id="minVisits" type="number" min="3" max="12" value="3" /></label>
       <label>Dist. máx. <input id="maxDist" type="number" min="0" max="40" value="8" />%</label>
       <select id="sort">
         <option value="score">Orden: score</option>

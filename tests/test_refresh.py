@@ -34,6 +34,7 @@ class RefreshTests(unittest.TestCase):
 
     def test_in_progress_bar_is_excluded(self):
         raw = self.raw.copy()
+        raw.index.name = "Date"  # Actual Yahoo layout; Date must not be both index and column.
         raw.loc[pd.Timestamp("2026-09-29")] = [100, 101, 99, 100, 1]
         result = finalized_prices(raw, self.cutoff, self.sessions)
         self.assertEqual(result.Date.max(), self.cutoff)

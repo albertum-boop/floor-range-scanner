@@ -2,13 +2,16 @@
 
 Aplicación estática, sin dependencias de servidor. Vercel puede desplegarla directamente como proyecto **Other / Static**.
 
-## Estrategia
-- `F`: mínimo estructural del rango detectado.
-- Zona de visita: `F` a `F × 1.035`.
-- Días consecutivos en zona cuentan como una sola visita.
-- Para contar una visita nueva, el precio debe separarse antes al menos un 5% del suelo.
-- Se registran número de visitas, densidad temporal, rebotes >=5%, proximidad actual y un SL de referencia situado por debajo del mínimo observado.
-- SES, APP y SGI se muestran como benchmarks del patrón.
+## Estrategia v2: rango validado antes de ordenar por proximidad
+- Caída previa ≥12% terminada antes del inicio de la base, respecto al máximo de cierre de las 20 sesiones anteriores.
+- Base de al menos 15 sesiones, 3 visitas y 15 sesiones de separación entre primera y última visita.
+- El soporte se fija con las dos primeras pruebas, ambas con rebote ≥5% en 5 sesiones. No se recalcula como el mínimo de toda la ventana.
+- Ningún cierre por debajo del soporte; pruebas agrupadas dentro del 3,5%; banda inferior sin deterioro superior al 3,5%.
+- Amplitud del rango ≤25% y deriva del precio ≤min(8%, la mitad de la amplitud). El techo es el percentil 85 de los máximos.
+- Una ruptura invalida esa base. Una base posterior debe cumplir otra vez todos los requisitos.
+- `VISITANDO_SUELO` requiere cerrar dentro de la zona, además de tocarla. El score se calcula sólo tras validar el rango.
+- Cada ficha incluye un gráfico diario con rango, soporte y techo. Los snapshots v1 se ocultan mientras se recalculan.
+- Son reglas de cribado explícitas, no evidencia de acumulación institucional ni un backtest de rentabilidad.
 
 ## Datos
 `public/data/current.json` contiene la última sesión publicada. El snapshot inicial del 25/09/2026 tenía 428 patrones obtenidos sobre 564 candidatos prefiltrados de 2.430 series. La actualización automática examina el universo completo de 2.438 símbolos (acciones y ETF), tomado de `mtr-swing-retest-scanner/config/ticker_database.json`. Por eso el número de patrones puede cambiar respecto a la selección inicial.

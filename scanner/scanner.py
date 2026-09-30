@@ -16,9 +16,14 @@ class Config:
     min_window_sessions: int = 15
     min_visits: int = 3
     min_successful_rebounds: int = 2
-    min_visit_span_sessions: int = 8
-    decline_threshold_pct: float = 10.0
-    decline_lookback_sessions: int = 50
+    min_visit_span_sessions: int = 15
+    decline_threshold_pct: float = 12.0
+    decline_lookback_sessions: int = 20
+    floor_cluster_pct: float = 3.5
+    max_range_width_pct: float = 25.0
+    max_trend_drift_pct: float = 8.0
+    max_trend_fraction_of_range: float = 0.5
+    bounce_window_sessions: int = 5
     min_dollar_volume: float = 2_000_000
     near_floor_pct: float = 5.0
     watch_floor_pct: float = 10.0
@@ -65,8 +70,9 @@ def detect_episodes(dates, highs, lows, floor, cfg):
     out=[]
     for j,(a,b,li,lv) in enumerate(eps):
         nxt=eps[j+1][0] if j+1<len(eps) else len(lows)
-        if li+1<nxt:
-            seg=highs[li+1:nxt]; rel=int(np.argmax(seg)); pi=li+1+rel; peak=float(highs[pi])
+        horizon=min(nxt,li+1+cfg.bounce_window_sessions)
+        if li+1<horizon:
+            seg=highs[li+1:horizon]; rel=int(np.argmax(seg)); pi=li+1+rel; peak=float(highs[pi])
         else: pi=li; peak=lv
         bounce=100*(peak/lv-1)
         out.append({"start_idx":a,"end_idx":b,"low_idx":li,"low":lv,
@@ -79,19 +85,45 @@ def evaluate_window(d,start,cfg):
     n=len(d); x=d.iloc[start:]
     if len(x)<cfg.min_window_sessions:return None
     dates=x["Date"].to_numpy(); highs=x["High"].to_numpy(float); lows=x["Low"].to_numpy(float)
-    floor=float(np.min(lows)); zone=floor*(1+cfg.floor_zone_pct/100)
+    # Establish the support from the FIRST TWO independent tests. Never move it
+    # down to the latest low: a later close underneath invalidates this base.
+    initial_floor=float(lows[0])
+    prior=d.iloc[max(0,start-cfg.decline_lookback_sessions):start]
+    if len(prior)<10:return None
+    prior_peak=float(prior["Close"].max())
+    decline=100*(1-initial_floor/prior_peak)
+    if decline<cfg.decline_threshold_pct:return None
+    initial_eps,_=detect_episodes(dates,highs,lows,initial_floor,cfg)
+    if len(initial_eps)<cfg.min_visits:return None
+    seed=initial_eps[:2]
+    if not all(e["successful_rebound"] for e in seed):return None
+    seed_lows=[e["low"] for e in seed]
+    if 100*(max(seed_lows)/min(seed_lows)-1)>cfg.floor_cluster_pct:return None
+    floor=float(min(seed_lows)); zone=floor*(1+cfg.floor_zone_pct/100)
     eps,touching=detect_episodes(dates,highs,lows,floor,cfg)
     if len(eps)<cfg.min_visits:return None
+    if eps[0]["start_idx"]!=0:return None
+    test_lows=[e["low"] for e in eps]
+    floor_spread=100*(max(test_lows)/min(test_lows)-1)
+    if floor_spread>cfg.floor_cluster_pct:return None
+    base_closes=x["Close"].to_numpy(float)
+    if np.any(base_closes < floor*(1-1e-8)):return None
+    # A lower floor in the final third signals deterioration, even if the
+    # individual contacts still fit the broad visit band.
+    thirds=np.array_split(lows,3)
+    lower_band_drift=100*(np.quantile(thirds[-1],.2)/np.quantile(thirds[0],.2)-1)
+    if lower_band_drift < -cfg.floor_cluster_pct:return None
+    ceiling=float(np.quantile(highs,.85))
+    width=100*(ceiling/floor-1)
+    if width<cfg.reset_pct or width>cfg.max_range_width_pct:return None
+    drift=100*float(np.expm1(np.polyfit(np.arange(len(base_closes)),np.log(base_closes),1)[0]*(len(base_closes)-1)))
+    if abs(drift)>min(cfg.max_trend_drift_pct,width*cfg.max_trend_fraction_of_range):return None
+    if base_closes[-1]>ceiling*1.02:return None
     span=max(1,eps[-1]["start_idx"]-eps[0]["start_idx"]+1)
     if span<cfg.min_visit_span_sessions:return None
     hist=eps[:-1]; succ=sum(e["successful_rebound"] for e in hist)
     if succ<cfg.min_successful_rebounds:return None
     reliability=succ/len(hist) if hist else 0.0
-    first_abs=start+eps[0]["start_idx"]
-    prior=d.iloc[max(0,first_abs-cfg.decline_lookback_sessions):first_abs+1]
-    if len(prior)<10:return None
-    prior_peak=float(prior["Close"].max()); decline=100*(1-floor/prior_peak)
-    if decline<cfg.decline_threshold_pct:return None
     closes=d["Close"].to_numpy(float); volumes=d["Volume"].to_numpy(float)
     dv=float(np.median((closes*volumes)[-20:]));
     if dv<cfg.min_dollar_volume:return None
@@ -100,7 +132,7 @@ def evaluate_window(d,start,cfg):
     touch=low<=zone; age=(len(x)-1)-eps[-1]["end_idx"]
     vals=[e["bounce_pct"] for e in hist if e["successful_rebound"]]; med=float(np.median(vals)) if vals else 0.0
     density=len(eps)/span*20
-    if touch: state="VISITANDO_SUELO"
+    if touch and close<=zone: state="VISITANDO_SUELO"
     elif dist<=cfg.near_floor_pct: state="CERCA_DEL_SUELO"
     elif age<=5 and dist<=cfg.watch_floor_pct: state="REBOTE_RECIENTE"
     else: state="VIGILAR"
@@ -110,6 +142,11 @@ def evaluate_window(d,start,cfg):
     visits_score=min(40,5*len(eps)); density_score=min(15,5*density); rel_score=15*reliability
     prox_score=max(0,25-2.5*max(dist,0)); fresh_score=max(0,10-1.5*age); score=visits_score+density_score+rel_score+prox_score+fresh_score
     return {"score":round(score,2),"state":state,"as_of":str(pd.Timestamp(current.Date).date()),
+        "range_validated":True,"ceiling":round(ceiling,6),"range_width_pct":round(width,2),
+        "trend_drift_pct":round(drift,2),"floor_test_spread_pct":round(floor_spread,2),
+        "lower_band_drift_pct":round(lower_band_drift,2),
+        "support_confirmed_at":eps[1]["bounce_date"],
+        "chart":[{"date":str(pd.Timestamp(r.Date).date()),"close":round(float(r.Close),6),"high":round(float(r.High),6),"low":round(float(r.Low),6)} for r in d.iloc[max(0,start-15):].itertuples()],
         "range_start":str(pd.Timestamp(x.iloc[0].Date).date()),"range_sessions":int(len(x)),
         "first_visit":eps[0]["start_date"],"last_visit":eps[-1]["start_date"],"visit_span_sessions":int(span),
         "floor":round(floor,6),"floor_zone_high":round(zone,6),"floor_zone_pct":cfg.floor_zone_pct,
@@ -123,10 +160,13 @@ def evaluate_window(d,start,cfg):
         "stop_below_floor_pct":round(100*(1-stop/floor),2),"episodes":[{k:v for k,v in e.items() if not k.endswith("_idx")} for e in eps]}
 
 def best_candidate(d,cfg):
-    n=len(d); lengths=[25,35,50,70,90,cfg.search_sessions]; best=None
-    for L in lengths:
-        if n<cfg.min_window_sessions:break
-        start=max(0,n-L); item=evaluate_window(d,start,cfg)
+    n=len(d); best=None; lows=d.Low.to_numpy(float)
+    # Candidate bases begin at an observed pivot AFTER the decline, not at an
+    # arbitrary rolling-window boundary that can include the decline itself.
+    for start in range(max(10,n-cfg.search_sessions),n-cfg.min_window_sessions+1):
+        if lows[start]>lows[start-1] or lows[start]>lows[start+1]:continue
+        if np.min(lows[start:])<lows[start]/(1+cfg.floor_cluster_pct/100):continue
+        item=evaluate_window(d,start,cfg)
         if item is None:continue
         key=(item["score"],item["visit_count"],-item["range_sessions"])
         if best is None or key>(best["score"],best["visit_count"],-best["range_sessions"]):best=item
@@ -155,11 +195,11 @@ def scan(source,cfg):
     for i,r in enumerate(cand,1):r["rank"]=i
     states={}
     for r in cand:states[r["state"]]=states.get(r["state"],0)+1
-    payload={"as_of":str(max(dates).date()) if dates else None,"strategy":{"name":"Repeated Floor Visits","floor_zone_pct":cfg.floor_zone_pct,
+    payload={"as_of":str(max(dates).date()) if dates else None,"strategy":{"name":"Validated Post-Decline Ranges","version":2,"floor_zone_pct":cfg.floor_zone_pct,
         "reset_pct":cfg.reset_pct,"decline_threshold_pct":cfg.decline_threshold_pct,
-        "description":"Busca un mínimo estructural visitado repetidamente; cada nueva visita exige una separación previa de al menos 5%."},
+        "description":"Caída previa terminada, suelo fijado tras dos pruebas, al menos tres visitas, lateralidad limitada y ningún cierre por debajo del soporte."},
         "universe":{"files_scanned":scanned,"valid_series":valid,"candidates":len(cand)},"state_counts":states,"candidates":cand,"config":asdict(cfg)}
-    frame=pd.DataFrame([{k:v for k,v in r.items() if k!="episodes"} for r in cand]); return frame,payload
+    frame=pd.DataFrame([{k:v for k,v in r.items() if k not in {"episodes","chart"}} for r in cand]); return frame,payload
 
 def main():
     ap=argparse.ArgumentParser();ap.add_argument("--source",required=True,type=Path);ap.add_argument("--config",type=Path);ap.add_argument("--out",type=Path,default=Path("current.json"));a=ap.parse_args()
