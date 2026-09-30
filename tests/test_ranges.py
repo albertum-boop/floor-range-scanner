@@ -51,6 +51,10 @@ class RangeTests(unittest.TestCase):
         base = np.r_[np.tile(self.cycle, 4), [80, 83, 87, 82, 80]]
         self.assertIsNone(best_candidate(history(base), Config()))
 
+    def test_old_floor_tests_do_not_validate_an_isolated_new_return(self):
+        base = np.r_[np.tile(self.cycle, 3), np.tile([108, 110, 109, 111], 12), [104, 101]]
+        self.assertIsNone(best_candidate(history(base), Config()))
+
     def test_near_floor_is_not_an_entry_while_falling(self):
         d = history([107, 105, 103, 101])
         d.loc[d.index[-1], "Open"] = 102

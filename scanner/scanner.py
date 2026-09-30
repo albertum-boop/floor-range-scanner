@@ -16,6 +16,7 @@ class Config:
     min_window_sessions: int = 15
     min_visits: int = 3
     min_successful_rebounds: int = 2
+    recent_visit_sessions: int = 40
     min_visit_span_sessions: int = 15
     decline_threshold_pct: float = 12.0
     decline_lookback_sessions: int = 20
@@ -140,6 +141,11 @@ def evaluate_window(d,start,cfg):
     if base_closes[-1]>ceiling*1.02:return None
     span=max(1,eps[-1]["start_idx"]-eps[0]["start_idx"]+1)
     if span<cfg.min_visit_span_sessions:return None
+    # Old tests cannot validate an active trading range indefinitely. Demand
+    # repeated, successful interactions in the most recent eight trading weeks.
+    recent_eps=[e for e in eps if e["start_idx"]>=max(0,len(x)-cfg.recent_visit_sessions)]
+    recent_success=sum(e["successful_rebound"] for e in recent_eps[:-1])
+    if len(recent_eps)<cfg.min_visits or recent_success<cfg.min_successful_rebounds:return None
     hist=eps[:-1]; succ=sum(e["successful_rebound"] for e in hist)
     if succ<cfg.min_successful_rebounds:return None
     reliability=succ/len(hist) if hist else 0.0
@@ -166,7 +172,7 @@ def evaluate_window(d,start,cfg):
         "trend_drift_pct":round(drift,2),"floor_test_spread_pct":round(floor_spread,2),
         "lower_band_drift_pct":round(lower_band_drift,2),
         "support_confirmed_at":eps[1]["bounce_date"],
-        "chart":[{"date":str(pd.Timestamp(r.Date).date()),"close":round(float(r.Close),6),"high":round(float(r.High),6),"low":round(float(r.Low),6)} for r in d.iloc[max(0,start-15):].itertuples()],
+        "chart":[{"date":str(pd.Timestamp(r.Date).date()),"open":round(float(r.Open),6),"close":round(float(r.Close),6),"high":round(float(r.High),6),"low":round(float(r.Low),6)} for r in d.iloc[max(0,start-15):].itertuples()],
         "range_start":str(pd.Timestamp(x.iloc[0].Date).date()),"range_sessions":int(len(x)),
         "first_visit":eps[0]["start_date"],"last_visit":eps[-1]["start_date"],"visit_span_sessions":int(span),
         "floor":round(floor,6),"floor_zone_high":round(zone,6),"floor_zone_pct":cfg.floor_zone_pct,
@@ -174,6 +180,8 @@ def evaluate_window(d,start,cfg):
         "distance_to_floor_pct":round(dist,2),"distance_to_zone_pct":round(dist_zone,2),"current_touch":bool(touch),
         "current_episode_days":int(eps[-1]["end_idx"]-eps[-1]["start_idx"]+1 if touch else 0),"last_visit_age":int(age),
         "visit_count":int(len(eps)),"touching_days":int(touching),"visit_density_20":round(density,2),
+        "recent_visit_count":len(recent_eps),"recent_visit_sessions":cfg.recent_visit_sessions,
+        "recent_successful_rebounds":int(recent_success),
         "successful_rebounds":int(succ),"historical_visits":int(len(hist)),"rebound_reliability_pct":round(100*reliability,1),
         "median_bounce_pct":round(med,2),"decline_pct":round(decline,2),"prior_peak":round(prior_peak,6),
         "median_dollar_volume_20":round(dv,2),"atr20":round(atr,6),"suggested_stop":round(stop,6),
@@ -215,7 +223,7 @@ def scan(source,cfg):
     for i,r in enumerate(cand,1):r["rank"]=i
     states={}
     for r in cand:states[r["state"]]=states.get(r["state"],0)+1
-    payload={"as_of":str(max(dates).date()) if dates else None,"strategy":{"name":"Validated Post-Decline Ranges","version":3,"floor_zone_pct":cfg.floor_zone_pct,
+    payload={"as_of":str(max(dates).date()) if dates else None,"strategy":{"name":"Validated Post-Decline Ranges","version":4,"floor_zone_pct":cfg.floor_zone_pct,
         "reset_pct":cfg.reset_pct,"decline_threshold_pct":cfg.decline_threshold_pct,
         "description":"Caída previa terminada, suelo fijado tras dos pruebas, al menos tres visitas, lateralidad limitada y ningún cierre por debajo del soporte."},
         "universe":{"files_scanned":scanned,"valid_series":valid,"candidates":len(cand)},"state_counts":states,"candidates":cand,"config":asdict(cfg)}

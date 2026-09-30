@@ -17,5 +17,6 @@
   "near_floor_pct": 5.0,
   "watch_floor_pct": 10.0,
   "stop_floor_buffer_pct": 1.0,
-  "atr_stop_fraction": 0.25
+  "atr_stop_fraction": 0.25,
+  "recent_visit_sessions": 40
 }

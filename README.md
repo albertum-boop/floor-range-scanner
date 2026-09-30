@@ -2,9 +2,10 @@
 
 Aplicación estática, sin dependencias de servidor. Vercel puede desplegarla directamente como proyecto **Other / Static**.
 
-## Estrategia v3: rango validado antes de ordenar por proximidad
+## Estrategia v4: rango validado antes de ordenar por proximidad
 - Caída previa ≥12% terminada antes del inicio de la base, respecto al máximo de cierre de las 20 sesiones anteriores.
 - Base de al menos 15 sesiones, 3 visitas y 15 sesiones de separación entre primera y última visita.
+- Frecuencia reciente: al menos 3 visitas en las últimas 40 sesiones; 2 deben haber rebotado ≥5%. Se rechazan bases apoyadas sólo en contactos antiguos y un retorno aislado.
 - El soporte se fija con las dos primeras pruebas, ambas con rebote ≥5% en 5 sesiones. No se recalcula como el mínimo de toda la ventana.
 - Ningún cierre por debajo del soporte; pruebas agrupadas dentro del 3,5%; banda inferior sin deterioro superior al 3,5%.
 - Amplitud del rango ≤25% y deriva del precio ≤min(8%, la mitad de la amplitud). El techo es el percentil 85 de los máximos.
@@ -54,8 +55,7 @@ python -m pip install -r scanner/requirements.txt
 python scanner/scanner.py --source /ruta/a/prices.zip --config scanner/config.json --out public/data/current.json
 ```
 
-El comando vuelve a examinar toda la fuente suministrada. El corte incluido en esta entrega
-se obtuvo sobre 564 candidatos prefiltrados, por lo que un barrido completo puede cambiar el universo.
+El comando vuelve a examinar toda la fuente suministrada. La actualización automática utiliza el universo completo configurado.
 Después de actualizar, subir `public/data/current.json` y `public/data/current.csv` al repositorio.
 
 ## Configuración estática explícita
