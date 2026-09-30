@@ -81,6 +81,25 @@ def detect_episodes(dates, highs, lows, floor, cfg):
             "successful_rebound":bool(bounce+1e-9>=cfg.reset_pct)})
     return out,touching
 
+def daily_setup(d, floor, ceiling, cfg):
+    """Confirm a daily rebound only with information available at this close."""
+    current, previous = d.iloc[-1], d.iloc[-2]
+    distance = 100 * (float(current.Close) / floor - 1)
+    room = 100 * (ceiling / float(current.Close) - 1)
+    contact = min(float(current.Low), float(previous.Low)) <= floor * (1 + cfg.floor_zone_pct / 100)
+    if distance > cfg.near_floor_pct:
+        signal, reason = "FUERA_ZONA", "El cierre está a más del 5% del soporte."
+    elif not contact:
+        signal, reason = "ESPERAR_REBOTE", "Sin contacto con la zona de suelo en las dos últimas sesiones."
+    elif current.Close <= current.Open or current.Close <= previous.High:
+        signal, reason = "ESPERAR_REBOTE", "Falta una vela diaria alcista que cierre por encima del máximo anterior."
+    elif room < cfg.reset_pct:
+        signal, reason = "SIN_MARGEN", "La confirmación deja menos de un 5% de recorrido hasta el techo estimado."
+    else:
+        signal, reason = "CONFIRMACION_DIARIA", "Contacto reciente con soporte y vela diaria alcista cerrando sobre el máximo anterior."
+    return {"entry_signal": signal, "entry_reason": reason,
+        "headroom_to_ceiling_pct": round(room, 2)}
+
 def evaluate_window(d,start,cfg):
     n=len(d); x=d.iloc[start:]
     if len(x)<cfg.min_window_sessions:return None
@@ -134,7 +153,7 @@ def evaluate_window(d,start,cfg):
     density=len(eps)/span*20
     if touch and close<=zone: state="VISITANDO_SUELO"
     elif dist<=cfg.near_floor_pct: state="CERCA_DEL_SUELO"
-    elif age<=5 and dist<=cfg.watch_floor_pct: state="REBOTE_RECIENTE"
+    elif age<=5 and dist<=cfg.watch_floor_pct and close>=eps[-1]["low"]*(1+cfg.reset_pct/100): state="REBOTE_RECIENTE"
     else: state="VIGILAR"
     high_all=d["High"].to_numpy(float); low_all=d["Low"].to_numpy(float)
     atr=atr20_arrays(high_all,low_all,closes)
@@ -142,6 +161,7 @@ def evaluate_window(d,start,cfg):
     visits_score=min(40,5*len(eps)); density_score=min(15,5*density); rel_score=15*reliability
     prox_score=max(0,25-2.5*max(dist,0)); fresh_score=max(0,10-1.5*age); score=visits_score+density_score+rel_score+prox_score+fresh_score
     return {"score":round(score,2),"state":state,"as_of":str(pd.Timestamp(current.Date).date()),
+        **daily_setup(d,floor,ceiling,cfg),
         "range_validated":True,"ceiling":round(ceiling,6),"range_width_pct":round(width,2),
         "trend_drift_pct":round(drift,2),"floor_test_spread_pct":round(floor_spread,2),
         "lower_band_drift_pct":round(lower_band_drift,2),
@@ -195,7 +215,7 @@ def scan(source,cfg):
     for i,r in enumerate(cand,1):r["rank"]=i
     states={}
     for r in cand:states[r["state"]]=states.get(r["state"],0)+1
-    payload={"as_of":str(max(dates).date()) if dates else None,"strategy":{"name":"Validated Post-Decline Ranges","version":2,"floor_zone_pct":cfg.floor_zone_pct,
+    payload={"as_of":str(max(dates).date()) if dates else None,"strategy":{"name":"Validated Post-Decline Ranges","version":3,"floor_zone_pct":cfg.floor_zone_pct,
         "reset_pct":cfg.reset_pct,"decline_threshold_pct":cfg.decline_threshold_pct,
         "description":"Caída previa terminada, suelo fijado tras dos pruebas, al menos tres visitas, lateralidad limitada y ningún cierre por debajo del soporte."},
         "universe":{"files_scanned":scanned,"valid_series":valid,"candidates":len(cand)},"state_counts":states,"candidates":cand,"config":asdict(cfg)}

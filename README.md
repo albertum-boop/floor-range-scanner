@@ -2,7 +2,7 @@
 
 Aplicación estática, sin dependencias de servidor. Vercel puede desplegarla directamente como proyecto **Other / Static**.
 
-## Estrategia v2: rango validado antes de ordenar por proximidad
+## Estrategia v3: rango validado antes de ordenar por proximidad
 - Caída previa ≥12% terminada antes del inicio de la base, respecto al máximo de cierre de las 20 sesiones anteriores.
 - Base de al menos 15 sesiones, 3 visitas y 15 sesiones de separación entre primera y última visita.
 - El soporte se fija con las dos primeras pruebas, ambas con rebote ≥5% en 5 sesiones. No se recalcula como el mínimo de toda la ventana.
@@ -10,7 +10,9 @@ Aplicación estática, sin dependencias de servidor. Vercel puede desplegarla di
 - Amplitud del rango ≤25% y deriva del precio ≤min(8%, la mitad de la amplitud). El techo es el percentil 85 de los máximos.
 - Una ruptura invalida esa base. Una base posterior debe cumplir otra vez todos los requisitos.
 - `VISITANDO_SUELO` requiere cerrar dentro de la zona, además de tocarla. El score se calcula sólo tras validar el rango.
-- Cada ficha incluye un gráfico diario con rango, soporte y techo. Los snapshots v1 se ocultan mientras se recalculan.
+- La señal `CONFIRMACION_DIARIA` requiere contacto con soporte hoy o ayer, cierre alcista sobre el máximo anterior, proximidad ≤5% y recorrido hasta el techo ≥5%. Es una señal al cierre, sin asumir ejecución a ese precio; no se ha backtesteado. Una visita sin esa vela figura como `ESPERAR_REBOTE`.
+- `REBOTE_RECIENTE` exige que el cierre haya recuperado al menos 5% desde el mínimo de la última visita; el tiempo transcurrido por sí solo no basta.
+- Cada ficha incluye un gráfico diario con rango, soporte y techo. Los snapshots anteriores se ocultan mientras se recalculan.
 - Son reglas de cribado explícitas, no evidencia de acumulación institucional ni un backtest de rentabilidad.
 
 ## Datos

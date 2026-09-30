@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scanner"))
-from scanner import Config, best_candidate
+from scanner import Config, best_candidate, daily_setup
 
 
 def history(base):
@@ -50,6 +50,25 @@ class RangeTests(unittest.TestCase):
     def test_old_range_then_fresh_floor_requires_new_validation(self):
         base = np.r_[np.tile(self.cycle, 4), [80, 83, 87, 82, 80]]
         self.assertIsNone(best_candidate(history(base), Config()))
+
+    def test_near_floor_is_not_an_entry_while_falling(self):
+        d = history([107, 105, 103, 101])
+        d.loc[d.index[-1], "Open"] = 102
+        self.assertEqual(daily_setup(d, 100, 112, Config())["entry_signal"], "ESPERAR_REBOTE")
+
+    def test_daily_confirmation_needs_a_green_break_above_previous_high(self):
+        d = history([101, 103])
+        d.loc[d.index[-1], "Open"] = 102
+        self.assertEqual(daily_setup(d, 100, 112, Config())["entry_signal"], "CONFIRMACION_DIARIA")
+        self.assertEqual(daily_setup(d, 100, 107, Config())["entry_signal"], "SIN_MARGEN")
+        d.loc[d.index[-1], "Close"] = 106
+        self.assertEqual(daily_setup(d, 100, 112, Config())["entry_signal"], "FUERA_ZONA")
+
+    def test_recent_touch_without_recovery_is_not_called_a_rebound(self):
+        d = history(np.r_[np.tile(self.cycle, 4), 105.5])
+        item = best_candidate(d, Config())
+        self.assertIsNotNone(item)
+        self.assertEqual(item["state"], "VIGILAR")
 
 
 if __name__ == "__main__":
