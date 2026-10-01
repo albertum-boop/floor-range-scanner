@@ -49,13 +49,13 @@
     <section class="controls">
       <input id="search" placeholder="Buscar ticker…" />
       <select id="stateFilter">
-        <option value="VISITANDO_SUELO" selected>Visitando suelo</option>
+        <option value="VISITANDO_SUELO">Visitando suelo</option>
         <option value="CERCA_DEL_SUELO">Cerca del suelo</option>
         <option value="EN_RANGO">En rango</option>
-        <option value="TODOS">Todos los estados</option>
+        <option value="TODOS" selected>Todos los estados</option>
       </select>
       <label>Visitas mín. <input id="minVisits" type="number" min="3" max="12" value="3" /></label>
-      <label>Dist. máx. <input id="maxDist" type="number" min="0" max="40" value="8" />%</label>
+      <label>Dist. máx. <input id="maxDist" type="number" min="0" max="40" value="40" />%</label>
       <select id="sort">
         <option value="visits">Orden: visitas</option>
         <option value="distance" selected>Orden: proximidad</option>
