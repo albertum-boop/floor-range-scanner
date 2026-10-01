@@ -19,17 +19,17 @@
       <div>
         <p class="eyebrow">Revisitas de soporte tras caída</p>
         <h1>Después de la caída.<br><em>Un suelo que se mantiene.</em></h1>
-        <p>Busca rangos laterales después de una caída, con soporte estable y visitas independientes. Abre cada ticker para ver el precio diario, el suelo y el techo.</p>
+        <p>Detecta caídas seguidas de un rango, cualquiera que sea la tendencia anterior. Consulta el suelo, sus visitas y la distancia del precio actual al suelo.</p>
       </div>
       <div class="hero-number"><strong id="candidateCount">—</strong><span>patrones detectados</span><small id="universeText">—</small></div>
     </section>
 
     <section id="method" class="method hidden">
-      <h3>Definición actual</h3>
+      <h3>Caída → rango → distancia al suelo</h3>
+      <p>La tendencia anterior a la caída puede ser alcista, bajista o lateral. Se evalúa si después de esa caída aparece un rango con suelo repetido.</p>
       <p>Primero exige una caída de al menos <b>12%</b> respecto al máximo de cierre de las 20 sesiones anteriores al inicio de la base. Después exige al menos <b>15 sesiones</b> y <b>3 visitas independientes</b>. En las últimas <b>40 sesiones</b> debe haber al menos <b>3 visitas</b>, dos de ellas ya seguidas de un rebote ≥5%; los contactos antiguos no bastan. Las dos primeras pruebas deben rebotar ≥5% en un máximo de 5 sesiones; fijan el soporte <b>F</b>. Una nueva visita requiere que antes el precio salga de la zona y se separe ≥5%.</p>
       <p>Se rechazan cierres posteriores por debajo de F, pruebas de suelo dispersas más de 3,5%, deterioro de la banda inferior y rangos de amplitud superior al 25%. La deriva de la recta de tendencia del precio se limita al menor valor entre 8% y la mitad de la amplitud del rango. El techo es el percentil 85 de los máximos. Liquidez mediana ≥ $2M/día.</p>
-      <p>El score sólo ordena patrones que ya superan esas reglas. «Visitando suelo» exige cerrar dentro de [F, F·1,035]; no constituye una confirmación de compra. Las referencias SES, APP y SGI sólo aparecen si cumplen el filtro en la fecha mostrada.</p>
-      <p><b>Confirmación diaria:</b> contacto con la zona hoy o en la sesión anterior, cierre por encima de la apertura y del máximo de la sesión anterior, distancia al suelo ≤5% y recorrido hasta el techo ≥5%. Es una señal al cierre para estudiar la siguiente sesión; el precio de ejecución y los costes pueden cambiar su resultado. «Esperar rebote» indica que aún falta esa confirmación.</p>
+      <p>«Visitando suelo» indica un cierre dentro de [F, F·1,035] y contacto con esa zona. «Cerca del suelo» indica un cierre hasta un 5% sobre F; los demás casos figuran como «En rango». La lista se ordena por distancia al suelo. SES, APP y SGI son referencias y sólo aparecen cuando cumplen los criterios.</p>
     </section>
 
     <section id="validationNotice" class="method hidden" role="status"><b>Clasificación anterior retirada.</b> Los resultados anteriores no comprobaban suficientemente la lateralidad. Se mostrarán nuevos tickers cuando termine el análisis con el detector corregido.</section>
@@ -41,35 +41,31 @@
 
     <section class="stats">
       <div><span>Visitando suelo</span><strong id="statTouching">—</strong></div>
-      <div><span>Confirmaciones diarias</span><strong id="statConfirmed">—</strong></div>
-      <div><span>Rebotes históricos: 100%</span><strong id="statPerfect">—</strong></div>
+      <div><span>Cerca del suelo</span><strong id="statNear">—</strong></div>
+      <div><span>≥5 visitas</span><strong id="statFive">—</strong></div>
       <div><span>Zona</span><strong id="statZone">—</strong></div>
     </section>
 
     <section class="controls">
       <input id="search" placeholder="Buscar ticker…" />
       <select id="stateFilter">
-        <option value="CONFIRMACION_DIARIA">Señales: confirmación diaria</option>
         <option value="VISITANDO_SUELO" selected>Visitando suelo</option>
         <option value="CERCA_DEL_SUELO">Cerca del suelo</option>
-        <option value="REBOTE_RECIENTE">Rebote reciente</option>
-        <option value="VIGILAR">Vigilar</option>
+        <option value="EN_RANGO">En rango</option>
         <option value="TODOS">Todos los estados</option>
       </select>
       <label>Visitas mín. <input id="minVisits" type="number" min="3" max="12" value="3" /></label>
       <label>Dist. máx. <input id="maxDist" type="number" min="0" max="40" value="8" />%</label>
       <select id="sort">
-        <option value="score">Orden: score</option>
         <option value="visits">Orden: visitas</option>
-        <option value="distance">Orden: proximidad</option>
-        <option value="reliability">Orden: rebotes históricos</option>
+        <option value="distance" selected>Orden: proximidad</option>
       </select>
     </section>
 
     <div class="resultbar"><b id="resultCount">0</b> resultados con los filtros actuales</div>
     <section class="table-wrap">
       <table>
-        <thead><tr><th>#</th><th>Ticker</th><th>Estado / señal diaria</th><th>Suelo / zona</th><th>Visitas</th><th>Rebotes ≥5%</th><th>Densidad</th><th>Cierre</th><th>Dist. F</th><th>SL ref.</th></tr></thead>
+        <thead><tr><th>#</th><th>Ticker</th><th>Posición en el rango</th><th>Suelo / zona</th><th>Visitas</th><th>Rebotes ≥5%</th><th>Densidad</th><th>Cierre</th><th>Dist. F</th><th>Techo estimado</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </section>

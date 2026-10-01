@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scanner"))
-from scanner import Config, best_candidate, daily_setup
+from scanner import Config, best_candidate
 
 
 def history(base):
@@ -29,6 +29,17 @@ class RangeTests(unittest.TestCase):
         self.assertGreaterEqual(candidate["visit_count"], 3)
         self.assertLess(abs(candidate["trend_drift_pct"]), 8)
 
+    def test_prior_trend_does_not_restrict_a_drop_followed_by_a_range(self):
+        for prior in [np.linspace(110, 140, 30), np.linspace(180, 130, 30)]:
+            with self.subTest(prior_start=prior[0]):
+                d = history(np.tile(self.cycle, 4))
+                for col, delta in [("Open", 0), ("Close", 0), ("High", .6), ("Low", -.6)]:
+                    d.loc[:29, col] = prior + delta
+                candidate = best_candidate(d, Config())
+                self.assertIsNotNone(candidate)
+                self.assertNotIn("entry_signal", candidate)
+                self.assertNotIn("suggested_stop", candidate)
+
     def test_falling_sawtooth_is_not_a_range(self):
         base = np.tile(self.cycle, 4) - np.linspace(0, 28, 32)
         self.assertIsNone(best_candidate(history(base), Config()))
@@ -36,14 +47,6 @@ class RangeTests(unittest.TestCase):
     def test_floor_break_is_not_rebased_downwards(self):
         d = history(np.r_[np.tile(self.cycle, 4), [97, 94, 90]])
         self.assertIsNone(best_candidate(d, Config()))
-
-    def test_stop_is_below_later_wicks_without_moving_the_support(self):
-        d = history(np.tile(self.cycle, 4))
-        d.loc[d.index[-1], "Low"] = 99.0
-        item = best_candidate(d, Config())
-        self.assertIsNotNone(item)
-        self.assertAlmostEqual(item["floor"], 100.4)
-        self.assertLess(item["suggested_stop"], 99.0)
 
     def test_late_crash_cannot_create_historical_floor_tests(self):
         base = np.r_[np.tile(self.cycle, 4), [60, 62, 59, 57]]
@@ -63,24 +66,6 @@ class RangeTests(unittest.TestCase):
         base = np.r_[np.tile(self.cycle, 3), np.tile([108, 110, 109, 111], 12), [104, 101]]
         self.assertIsNone(best_candidate(history(base), Config()))
 
-    def test_near_floor_is_not_an_entry_while_falling(self):
-        d = history([107, 105, 103, 101])
-        d.loc[d.index[-1], "Open"] = 102
-        self.assertEqual(daily_setup(d, 100, 112, Config())["entry_signal"], "ESPERAR_REBOTE")
-
-    def test_daily_confirmation_needs_a_green_break_above_previous_high(self):
-        d = history([101, 103])
-        d.loc[d.index[-1], "Open"] = 102
-        self.assertEqual(daily_setup(d, 100, 112, Config())["entry_signal"], "CONFIRMACION_DIARIA")
-        self.assertEqual(daily_setup(d, 100, 107, Config())["entry_signal"], "SIN_MARGEN")
-        d.loc[d.index[-1], "Close"] = 106
-        self.assertEqual(daily_setup(d, 100, 112, Config())["entry_signal"], "FUERA_ZONA")
-
-    def test_recent_touch_without_recovery_is_not_called_a_rebound(self):
-        d = history(np.r_[np.tile(self.cycle, 4), 105.5])
-        item = best_candidate(d, Config())
-        self.assertIsNotNone(item)
-        self.assertEqual(item["state"], "VIGILAR")
 
 
 if __name__ == "__main__":

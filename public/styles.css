@@ -2,4 +2,5 @@
 
 .range-chart{margin:20px 0;padding:14px;background:white;border:1px solid #dfe6e5;border-radius:12px}.range-chart h3{font-size:14px;margin:0 0 10px}.range-chart svg{display:block;width:100%;height:auto}.range-chart p{font-size:11px;line-height:1.6;color:#60706e}
 
-.daily-signal{display:block;font-size:11px;color:#786543;margin-top:6px}.daily-signal.confirmed{color:#147348;font-weight:700}.signal-card{padding:16px 18px;margin:18px 0;border:1px solid #dfe6e2;border-radius:12px;background:#f6f9f7}.signal-card .daily-signal{font-size:14px;margin:0}.signal-card p{font-size:13px;line-height:1.5;margin:8px 0}.signal-card small{font-size:11px;color:#6b7874}
+
+.s-en_rango{background:#e9edf0;color:#4d5b64}
