@@ -66,6 +66,12 @@ class RangeTests(unittest.TestCase):
         base = np.r_[np.tile(self.cycle, 3), np.tile([108, 110, 109, 111], 12), [104, 101]]
         self.assertIsNone(best_candidate(history(base), Config()))
 
+    def test_long_gap_between_floor_visits_breaks_the_range(self):
+        base = np.r_[np.tile(self.cycle, 2), np.repeat(108, 20), np.tile(self.cycle, 3)]
+        d = history(base)
+        self.assertIsNotNone(best_candidate(d, Config(max_visit_gap_sessions=100)))
+        self.assertIsNone(best_candidate(d, Config()))
+
 
 
 if __name__ == "__main__":

@@ -15,5 +15,6 @@
   "bounce_window_sessions": 5,
   "min_dollar_volume": 2000000,
   "near_floor_pct": 5.0,
-  "recent_visit_sessions": 40
+  "recent_visit_sessions": 40,
+  "max_visit_gap_sessions": 12
 }

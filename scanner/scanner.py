@@ -17,6 +17,7 @@ class Config:
     min_visits: int = 3
     min_successful_rebounds: int = 2
     recent_visit_sessions: int = 40
+    max_visit_gap_sessions: int = 12
     min_visit_span_sessions: int = 15
     decline_threshold_pct: float = 12.0
     decline_lookback_sessions: int = 20
@@ -94,6 +95,8 @@ def evaluate_window(d,start,cfg):
     eps,touching=detect_episodes(dates,highs,lows,floor,cfg)
     if len(eps)<cfg.min_visits:return None
     if eps[0]["start_idx"]!=0:return None
+    # A floor revisited after a long hiatus is not an actively ranging floor.
+    if any(b["start_idx"]-a["end_idx"]>cfg.max_visit_gap_sessions for a,b in zip(eps,eps[1:])):return None
     test_lows=[e["low"] for e in eps]
     floor_spread=100*(max(test_lows)/min(test_lows)-1)
     if floor_spread>cfg.floor_cluster_pct:return None
@@ -148,6 +151,7 @@ def evaluate_window(d,start,cfg):
         "current_episode_days":int(eps[-1]["end_idx"]-eps[-1]["start_idx"]+1 if touch else 0),"last_visit_age":int(age),
         "visit_count":int(len(eps)),"touching_days":int(touching),"visit_density_20":round(density,2),
         "recent_visit_count":len(recent_eps),"recent_visit_sessions":cfg.recent_visit_sessions,
+        "max_visit_gap_sessions":cfg.max_visit_gap_sessions,
         "recent_successful_rebounds":int(recent_success),
         "successful_rebounds":int(succ),"historical_visits":int(len(hist)),"rebound_reliability_pct":round(100*reliability,1),
         "median_bounce_pct":round(med,2),"decline_pct":round(decline,2),"prior_peak":round(prior_peak,6),
@@ -190,7 +194,7 @@ def scan(source,cfg):
     for i,r in enumerate(cand,1):r["rank"]=i
     states={}
     for r in cand:states[r["state"]]=states.get(r["state"],0)+1
-    payload={"as_of":str(max(dates).date()) if dates else None,"strategy":{"name":"Validated Post-Decline Ranges","version":5,"floor_zone_pct":cfg.floor_zone_pct,
+    payload={"as_of":str(max(dates).date()) if dates else None,"strategy":{"name":"Validated Post-Decline Ranges","version":6,"floor_zone_pct":cfg.floor_zone_pct,
         "reset_pct":cfg.reset_pct,"decline_threshold_pct":cfg.decline_threshold_pct,
         "description":"Caída seguida de rango con suelo repetido. La tendencia anterior a la caída no limita la selección. Salida descriptiva: niveles, visitas y distancia al suelo."},
         "universe":{"files_scanned":scanned,"valid_series":valid,"candidates":len(cand)},"state_counts":states,"candidates":cand,"config":asdict(cfg)}
