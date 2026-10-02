@@ -15,7 +15,7 @@ Aplicación estática, sin dependencias de servidor. Vercel puede desplegarla di
 - Amplitud del rango ≤25% y deriva del precio ≤min(8%, la mitad de la amplitud). El techo es el percentil 85 de los máximos.
 - Una ruptura invalida esa base. Una base posterior debe cumplir otra vez todos los requisitos.
 - `VISITANDO_SUELO` requiere cerrar dentro de la zona, además de tocarla. La puntuación estructural se calcula sólo tras validar el rango y no incluye la distancia al suelo. Combina duración (25 puntos), extensión temporal de visitas (25), proporción de rebotes (15 intradía y 5 al cierre), lateralidad (20) y agrupación de mínimos (10). No representa probabilidad de éxito.
-- La interfaz muestra por defecto los patrones hasta un 5% del suelo ordenados por estructura; se puede ampliar la distancia y ordenar por cercanía o número de visitas.
+- La interfaz muestra por defecto todos los patrones ordenados por estructura y distingue el total de la cantidad cercana al suelo. Se puede limitar la distancia al 5% y ordenar por cercanía o número de visitas.
 - La salida se limita al patrón: suelo, techo estimado, visitas, distancias, liquidez y gráfico. No se generan entradas, stops, objetivos ni juicios de valoración.
 - Cada ficha incluye un gráfico diario con rango, soporte y techo. La interfaz requiere snapshots v8 para no mezclar puntuaciones de versiones anteriores.
 - Son reglas de cribado explícitas, no evidencia de acumulación institucional ni un backtest de rentabilidad.

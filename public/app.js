@@ -33,6 +33,8 @@ function render(){
   let rows=DATA.candidates.filter(x=>(!q||x.ticker.toLowerCase().includes(q))&&(st==="TODOS"||x.state===st)&&x.visit_count>=minV&&x.distance_to_floor_pct<=maxD);
   rows.sort((a,b)=>sort==="visits"?(b.visit_count-a.visit_count||b.pattern_score-a.pattern_score):sort==="quality"?(b.pattern_score-a.pattern_score||a.distance_to_floor_pct-b.distance_to_floor_pct):(a.distance_to_floor_pct-b.distance_to_floor_pct||b.pattern_score-a.pattern_score));
   $("resultCount").textContent=rows.length;
+  const nearCount=DATA.candidates.filter(x=>x.distance_to_floor_pct<=5).length;
+  $("resultContext").textContent=`de ${DATA.candidates.length} patrones · ${nearCount} a ≤5% del suelo`;
   $("rows").innerHTML=rows.map((x,i)=>`<tr data-ticker="${esc(x.ticker)}"><td>${i+1}</td><td><strong>${esc(x.ticker)}</strong>${REF.has(x.ticker)?'<small class="tag">REF</small>':''}</td><td>${status(x.state)}</td><td><b>${money(x.floor)}</b><small>→ ${money(x.floor_zone_high)}</small></td><td><strong>${x.visit_count}</strong><small>${x.recent_visit_count} en ${x.recent_visit_sessions} ses.</small></td><td><strong>${x.successful_rebounds}/${x.historical_visits}</strong><small>cierre ${x.close_confirmed_rebounds}/${x.historical_visits}</small></td><td><strong>${x.pattern_score.toFixed(0)}/100</strong><small>${x.range_sessions} sesiones</small></td><td>${money(x.last_close)}<small>${pct(x.day_return_pct,true)} día</small></td><td><strong>${pct(x.distance_to_floor_pct)}</strong></td><td>${money(x.ceiling)}</td></tr>`).join("");
   document.querySelectorAll("tbody tr[data-ticker]").forEach(tr=>tr.onclick=()=>showDrawer(DATA.candidates.find(x=>x.ticker===tr.dataset.ticker)));
 }
