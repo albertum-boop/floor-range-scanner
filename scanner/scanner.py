@@ -44,7 +44,7 @@ def clean_prices(raw):
         (d["Low"]<=d[["Open","High","Close"]].min(axis=1)))
     return d.loc[ok].reset_index(drop=True)
 
-def detect_episodes(dates, highs, lows, floor, cfg):
+def detect_episodes(dates, highs, lows, closes, floor, cfg):
     zone=floor*(1+cfg.floor_zone_pct/100); reset=floor*(1+cfg.reset_pct/100)
     eps=[]; active=None; armed=True; touching=0
     for i in range(len(lows)):
@@ -58,9 +58,9 @@ def detect_episodes(dates, highs, lows, floor, cfg):
                 if lows[i]<active[3]: active[2]=i; active[3]=float(lows[i])
             else:
                 eps.append(active); active=None
-                if highs[i]>=reset: armed=True
+                if closes[i]>=reset: armed=True
             continue
-        if (not armed) and highs[i]>=reset: armed=True
+        if (not armed) and closes[i]>=reset: armed=True
     if active is not None: eps.append(active)
     out=[]
     for j,(a,b,li,lv) in enumerate(eps):
@@ -68,12 +68,16 @@ def detect_episodes(dates, highs, lows, floor, cfg):
         horizon=min(nxt,li+1+cfg.bounce_window_sessions)
         if li+1<horizon:
             seg=highs[li+1:horizon]; rel=int(np.argmax(seg)); pi=li+1+rel; peak=float(highs[pi])
-        else: pi=li; peak=lv
+            close_peak=float(np.max(closes[li+1:horizon]))
+        else: pi=li; peak=lv; close_peak=lv
         bounce=100*(peak/lv-1)
+        close_bounce=100*(close_peak/lv-1)
         out.append({"start_idx":a,"end_idx":b,"low_idx":li,"low":lv,
             "start_date":str(pd.Timestamp(dates[a]).date()),"end_date":str(pd.Timestamp(dates[b]).date()),"test_date":str(pd.Timestamp(dates[li]).date()),
             "bounce_high":round(peak,6),"bounce_date":str(pd.Timestamp(dates[pi]).date()),"bounce_pct":round(bounce,2),
-            "successful_rebound":bool(bounce+1e-9>=cfg.reset_pct)})
+            "bounce_close_pct":round(close_bounce,2),
+            "successful_rebound":bool(bounce+1e-9>=cfg.reset_pct),
+            "close_confirmed_rebound":bool(close_bounce+1e-9>=cfg.reset_pct)})
     return out,touching
 
 def evaluate_window(d,start,cfg):
@@ -89,18 +93,22 @@ def evaluate_window(d,start,cfg):
     decline=100*(1-initial_floor/prior_peak)
     if decline<cfg.decline_threshold_pct:return None
     base_closes=x["Close"].to_numpy(float)
+    # A wick alone cannot establish the fall. The base starts with a daily
+    # close at least as far below the prior peak as the decline threshold.
+    closing_decline=100*(1-base_closes[0]/prior_peak)
+    if closing_decline<cfg.decline_threshold_pct:return None
     # The fall must leave a lower price regime, not just one low wick inside a
     # higher trading area (a common topping/distribution false positive).
     regime_drop=100*(1-float(np.median(base_closes))/prior_peak)
     if regime_drop<cfg.min_median_regime_drop_pct:return None
-    initial_eps,_=detect_episodes(dates,highs,lows,initial_floor,cfg)
+    initial_eps,_=detect_episodes(dates,highs,lows,base_closes,initial_floor,cfg)
     if len(initial_eps)<cfg.min_visits:return None
     seed=initial_eps[:2]
     if not all(e["successful_rebound"] for e in seed):return None
     seed_lows=[e["low"] for e in seed]
     if 100*(max(seed_lows)/min(seed_lows)-1)>cfg.floor_cluster_pct:return None
     floor=float(min(seed_lows)); zone=floor*(1+cfg.floor_zone_pct/100)
-    eps,touching=detect_episodes(dates,highs,lows,floor,cfg)
+    eps,touching=detect_episodes(dates,highs,lows,base_closes,floor,cfg)
     if len(eps)<cfg.min_visits:return None
     if eps[0]["start_idx"]!=0:return None
     # One lower wick is tolerated. Repeated independent breaks below the first
@@ -142,14 +150,20 @@ def evaluate_window(d,start,cfg):
     close=float(current.Close); low=float(current.Low); dist=100*(close/floor-1); dist_zone=100*(close/zone-1)
     touch=low<=zone; age=(len(x)-1)-eps[-1]["end_idx"]
     vals=[e["bounce_pct"] for e in hist if e["successful_rebound"]]; med=float(np.median(vals)) if vals else 0.0
+    close_confirmed=sum(e["close_confirmed_rebound"] for e in hist)
     density=len(eps)/span*20
     if touch and close<=zone: state="VISITANDO_SUELO"
     elif dist<=cfg.near_floor_pct: state="CERCA_DEL_SUELO"
     else: state="EN_RANGO"
     lowest_wick=float(np.min(lows))
-    visits_score=min(40,5*len(eps)); density_score=min(15,5*density); rel_score=15*reliability
-    prox_score=max(0,25-2.5*max(dist,0)); fresh_score=max(0,10-1.5*age); score=visits_score+density_score+rel_score+prox_score+fresh_score
-    return {"score":round(score,2),"state":state,"as_of":str(pd.Timestamp(current.Date).date()),
+    # Structural evidence and distance are deliberately independent. A nearby
+    # floor does not make a weak range more convincing.
+    stable_limit=min(cfg.max_trend_drift_pct,width*cfg.max_trend_fraction_of_range)
+    score=(25*min(1,len(x)/35)+25*min(1,span/30)+15*reliability
+           +5*close_confirmed/max(1,len(hist))
+           +20*max(0,1-abs(drift)/stable_limit)
+           +10*max(0,1-floor_spread/cfg.floor_cluster_pct))
+    return {"score":round(score,2),"pattern_score":round(score,2),"state":state,"as_of":str(pd.Timestamp(current.Date).date()),
         "range_validated":True,"ceiling":round(ceiling,6),"range_width_pct":round(width,2),
         "trend_drift_pct":round(drift,2),"floor_test_spread_pct":round(floor_spread,2),
         "lower_band_drift_pct":round(lower_band_drift,2),"median_regime_drop_pct":round(regime_drop,2),
@@ -166,8 +180,10 @@ def evaluate_window(d,start,cfg):
         "recent_visit_count":len(recent_eps),"recent_visit_sessions":cfg.recent_visit_sessions,
         "max_visit_gap_sessions":cfg.max_visit_gap_sessions,
         "recent_successful_rebounds":int(recent_success),
-        "successful_rebounds":int(succ),"historical_visits":int(len(hist)),"rebound_reliability_pct":round(100*reliability,1),
-        "median_bounce_pct":round(med,2),"decline_pct":round(decline,2),"prior_peak":round(prior_peak,6),
+        "successful_rebounds":int(succ),"close_confirmed_rebounds":int(close_confirmed),
+        "historical_visits":int(len(hist)),"rebound_reliability_pct":round(100*reliability,1),
+        "median_bounce_pct":round(med,2),"decline_pct":round(decline,2),
+        "closing_decline_pct":round(closing_decline,2),"prior_peak":round(prior_peak,6),
         "median_dollar_volume_20":round(dv,2),"lowest_wick":round(lowest_wick,6),
         "episodes":[{k:v for k,v in e.items() if not k.endswith("_idx")} for e in eps]}
 
@@ -203,11 +219,11 @@ def scan(source,cfg):
         if len(d)<60:continue
         valid+=1; dates.append(d.Date.iloc[-1]); item=best_candidate(d,cfg)
         if item:item["ticker"]=ticker; cand.append(item)
-    cand.sort(key=lambda r:(-r["score"],-r["visit_count"],r["distance_to_floor_pct"],r["ticker"]))
+    cand.sort(key=lambda r:(-r["pattern_score"],r["distance_to_floor_pct"],r["ticker"]))
     for i,r in enumerate(cand,1):r["rank"]=i
     states={}
     for r in cand:states[r["state"]]=states.get(r["state"],0)+1
-    payload={"as_of":str(max(dates).date()) if dates else None,"strategy":{"name":"Validated Post-Decline Ranges","version":7,"floor_zone_pct":cfg.floor_zone_pct,
+    payload={"as_of":str(max(dates).date()) if dates else None,"strategy":{"name":"Validated Post-Decline Ranges","version":8,"floor_zone_pct":cfg.floor_zone_pct,
         "reset_pct":cfg.reset_pct,"decline_threshold_pct":cfg.decline_threshold_pct,
         "description":"Caída seguida de rango con suelo repetido. La tendencia anterior a la caída no limita la selección. Salida descriptiva: niveles, visitas y distancia al suelo."},
         "universe":{"files_scanned":scanned,"valid_series":valid,"candidates":len(cand)},"state_counts":states,"candidates":cand,"config":asdict(cfg)}

@@ -1,5 +1,6 @@
 """Behavioural regressions: range, falling trend, broken floor and shifted low."""
 import sys
+import json
 from pathlib import Path
 import unittest
 
@@ -7,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scanner"))
-from scanner import Config, best_candidate, evaluate_window
+from scanner import Config, best_candidate, clean_prices, detect_episodes, evaluate_window
 
 
 def history(base):
@@ -90,6 +91,52 @@ class RangeTests(unittest.TestCase):
         one_wick = history(np.tile(self.cycle, 5))
         one_wick.loc[46, "Low"] = 98.2
         self.assertIsNotNone(best_candidate(one_wick, Config()))
+
+    def test_low_wick_without_a_closing_drop_does_not_start_a_base(self):
+        d = history(np.tile(self.cycle, 4))
+        d.loc[30, "Close"] = 129
+        d.loc[30, "Open"] = 129
+        d.loc[30, "High"] = 130
+        self.assertLess(d.loc[30, "Low"], d.loc[:29, "Close"].max() * .88)
+        self.assertIsNone(evaluate_window(d, 30, Config()))
+
+    def test_high_wicks_do_not_create_independent_daily_floor_visits(self):
+        dates = pd.bdate_range("2026-04-01", periods=9)
+        lows = np.array([100, 103, 104, 100, 103, 104, 100, 103, 104], dtype=float)
+        closes = np.array([101, 104, 104, 101, 104, 104, 101, 104, 104], dtype=float)
+        highs = np.array([102, 108, 108, 102, 108, 108, 102, 108, 108], dtype=float)
+        episodes, _ = detect_episodes(dates, highs, lows, closes, 100, Config())
+        self.assertEqual(len(episodes), 1)
+
+    def test_wick_rebound_and_close_confirmation_are_reported_separately(self):
+        dates = pd.bdate_range("2026-04-01", periods=4)
+        lows = np.array([100, 102, 108, 100], dtype=float)
+        closes = np.array([101, 104, 104, 101], dtype=float)
+        highs = np.array([102, 108, 109, 102], dtype=float)
+        episodes, _ = detect_episodes(dates, highs, lows, closes, 100, Config())
+        self.assertTrue(episodes[0]["successful_rebound"])
+        self.assertFalse(episodes[0]["close_confirmed_rebound"])
+
+    def test_user_labeled_daily_windows(self):
+        examples = json.loads((Path(__file__).parent / "fixtures/labeled_windows.json").read_text())["examples"]
+        for ticker, item in examples.items():
+            with self.subTest(ticker=ticker):
+                chart = pd.DataFrame(item["chart"]).rename(columns=str.title)
+                chart["Volume"] = 10_000_000  # Snapshot chart omits volume; test price structure.
+                # The snapshot stores 15 earlier bars. Fill the other five with
+                # its recorded prior peak so the 20-bar drop check is reproducible.
+                dates = pd.bdate_range(end=pd.Timestamp(chart.Date.iloc[0]) - pd.offsets.BDay(1), periods=5)
+                prior = pd.DataFrame([{"Date": day, "Open": item["prior_peak"],
+                    "High": item["prior_peak"] + 1, "Low": item["prior_peak"] - 1,
+                    "Close": item["prior_peak"], "Volume": 10_000_000} for day in dates])
+                d = clean_prices(pd.concat([prior, chart], ignore_index=True))
+                start = int(d.index[d.Date == pd.Timestamp(item["range_start"])][0])
+                candidate = evaluate_window(d, start, Config())
+                if ticker in {"IRM", "PLSE"}:
+                    self.assertIsNone(candidate)
+                else:
+                    self.assertIsNotNone(candidate)
+                    self.assertGreaterEqual(candidate["closing_decline_pct"], 12)
 
 
 

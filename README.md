@@ -2,20 +2,22 @@
 
 Aplicación estática, sin dependencias de servidor. Vercel puede desplegarla directamente como proyecto **Other / Static**.
 
-## Detector v7: caída seguida de rango
+## Detector v8: caída seguida de rango
 - La tendencia anterior puede ser alcista, bajista o lateral: no se exige una tendencia de fondo concreta.
-- Caída previa ≥12% terminada antes del inicio de la base, respecto al máximo de cierre de las 20 sesiones anteriores.
+- Caída previa ≥12% en el primer cierre de la base respecto al máximo de cierre de las 20 sesiones anteriores. Una mecha aislada no basta.
 - La mediana de los cierres posteriores debe permanecer ≥8% por debajo de ese máximo; un mínimo aislado en una zona de precios alta no basta.
 - Base de al menos 15 sesiones, 3 visitas y 15 sesiones de separación entre primera y última visita.
 - Frecuencia sostenida: máximo 12 sesiones desde el final de una visita hasta el inicio de la siguiente durante todo el rango; al menos 3 visitas en las últimas 40 sesiones, de las cuales 2 deben haber rebotado ≥5%. Se rechazan bases apoyadas sólo en contactos antiguos y un retorno aislado.
 - El soporte se fija con las dos primeras pruebas, ambas con rebote ≥5% en 5 sesiones. No se recalcula como el mínimo de toda la ventana.
+- Una nueva visita independiente exige un cierre diario ≥5% por encima del suelo entre ambas pruebas; un máximo intradía no basta. El rebote mínimo→máximo se mantiene como referencia descriptiva y se informa por separado de cuántos rebotes superaron el 5% también en un cierre.
 - Se tolera una mecha aislada bajo las primeras pruebas, pero dos visitas independientes con mínimos >1% inferiores invalidan el suelo.
 - Ningún cierre por debajo del soporte; pruebas agrupadas dentro del 3,5%; banda inferior sin deterioro superior al 3,5%.
 - Amplitud del rango ≤25% y deriva del precio ≤min(8%, la mitad de la amplitud). El techo es el percentil 85 de los máximos.
 - Una ruptura invalida esa base. Una base posterior debe cumplir otra vez todos los requisitos.
-- `VISITANDO_SUELO` requiere cerrar dentro de la zona, además de tocarla. El score se calcula sólo tras validar el rango.
+- `VISITANDO_SUELO` requiere cerrar dentro de la zona, además de tocarla. La puntuación estructural se calcula sólo tras validar el rango y no incluye la distancia al suelo. Combina duración (25 puntos), extensión temporal de visitas (25), proporción de rebotes (15 intradía y 5 al cierre), lateralidad (20) y agrupación de mínimos (10). No representa probabilidad de éxito.
+- La interfaz muestra por defecto los patrones hasta un 5% del suelo ordenados por estructura; se puede ampliar la distancia y ordenar por cercanía o número de visitas.
 - La salida se limita al patrón: suelo, techo estimado, visitas, distancias, liquidez y gráfico. No se generan entradas, stops, objetivos ni juicios de valoración.
-- Cada ficha incluye un gráfico diario con rango, soporte y techo. La interfaz admite snapshots v4 durante la transición y no muestra sus antiguos campos de operación.
+- Cada ficha incluye un gráfico diario con rango, soporte y techo. La interfaz requiere snapshots v8 para no mezclar puntuaciones de versiones anteriores.
 - Son reglas de cribado explícitas, no evidencia de acumulación institucional ni un backtest de rentabilidad.
 
 ## Datos
