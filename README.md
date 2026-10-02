@@ -2,12 +2,14 @@
 
 Aplicación estática, sin dependencias de servidor. Vercel puede desplegarla directamente como proyecto **Other / Static**.
 
-## Detector v6: caída seguida de rango
+## Detector v7: caída seguida de rango
 - La tendencia anterior puede ser alcista, bajista o lateral: no se exige una tendencia de fondo concreta.
 - Caída previa ≥12% terminada antes del inicio de la base, respecto al máximo de cierre de las 20 sesiones anteriores.
+- La mediana de los cierres posteriores debe permanecer ≥8% por debajo de ese máximo; un mínimo aislado en una zona de precios alta no basta.
 - Base de al menos 15 sesiones, 3 visitas y 15 sesiones de separación entre primera y última visita.
 - Frecuencia sostenida: máximo 12 sesiones desde el final de una visita hasta el inicio de la siguiente durante todo el rango; al menos 3 visitas en las últimas 40 sesiones, de las cuales 2 deben haber rebotado ≥5%. Se rechazan bases apoyadas sólo en contactos antiguos y un retorno aislado.
 - El soporte se fija con las dos primeras pruebas, ambas con rebote ≥5% en 5 sesiones. No se recalcula como el mínimo de toda la ventana.
+- Se tolera una mecha aislada bajo las primeras pruebas, pero dos visitas independientes con mínimos >1% inferiores invalidan el suelo.
 - Ningún cierre por debajo del soporte; pruebas agrupadas dentro del 3,5%; banda inferior sin deterioro superior al 3,5%.
 - Amplitud del rango ≤25% y deriva del precio ≤min(8%, la mitad de la amplitud). El techo es el percentil 85 de los máximos.
 - Una ruptura invalida esa base. Una base posterior debe cumplir otra vez todos los requisitos.

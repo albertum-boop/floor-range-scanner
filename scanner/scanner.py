@@ -21,7 +21,10 @@ class Config:
     min_visit_span_sessions: int = 15
     decline_threshold_pct: float = 12.0
     decline_lookback_sessions: int = 20
+    min_median_regime_drop_pct: float = 8.0
     floor_cluster_pct: float = 3.5
+    floor_wick_buffer_pct: float = 1.0
+    max_later_floor_wick_breaches: int = 1
     max_range_width_pct: float = 25.0
     max_trend_drift_pct: float = 8.0
     max_trend_fraction_of_range: float = 0.5
@@ -85,6 +88,11 @@ def evaluate_window(d,start,cfg):
     prior_peak=float(prior["Close"].max())
     decline=100*(1-initial_floor/prior_peak)
     if decline<cfg.decline_threshold_pct:return None
+    base_closes=x["Close"].to_numpy(float)
+    # The fall must leave a lower price regime, not just one low wick inside a
+    # higher trading area (a common topping/distribution false positive).
+    regime_drop=100*(1-float(np.median(base_closes))/prior_peak)
+    if regime_drop<cfg.min_median_regime_drop_pct:return None
     initial_eps,_=detect_episodes(dates,highs,lows,initial_floor,cfg)
     if len(initial_eps)<cfg.min_visits:return None
     seed=initial_eps[:2]
@@ -95,12 +103,16 @@ def evaluate_window(d,start,cfg):
     eps,touching=detect_episodes(dates,highs,lows,floor,cfg)
     if len(eps)<cfg.min_visits:return None
     if eps[0]["start_idx"]!=0:return None
+    # One lower wick is tolerated. Repeated independent breaks below the first
+    # two visits mean the apparent floor is drifting lower.
+    first_two_floor=min(e["low"] for e in eps[:2])
+    later_floor_breaches=sum(e["low"]<first_two_floor*(1-cfg.floor_wick_buffer_pct/100) for e in eps[2:])
+    if later_floor_breaches>cfg.max_later_floor_wick_breaches:return None
     # A floor revisited after a long hiatus is not an actively ranging floor.
     if any(b["start_idx"]-a["end_idx"]>cfg.max_visit_gap_sessions for a,b in zip(eps,eps[1:])):return None
     test_lows=[e["low"] for e in eps]
     floor_spread=100*(max(test_lows)/min(test_lows)-1)
     if floor_spread>cfg.floor_cluster_pct:return None
-    base_closes=x["Close"].to_numpy(float)
     if np.any(base_closes < floor*(1-1e-8)):return None
     # A lower floor in the final third signals deterioration, even if the
     # individual contacts still fit the broad visit band.
@@ -140,7 +152,8 @@ def evaluate_window(d,start,cfg):
     return {"score":round(score,2),"state":state,"as_of":str(pd.Timestamp(current.Date).date()),
         "range_validated":True,"ceiling":round(ceiling,6),"range_width_pct":round(width,2),
         "trend_drift_pct":round(drift,2),"floor_test_spread_pct":round(floor_spread,2),
-        "lower_band_drift_pct":round(lower_band_drift,2),
+        "lower_band_drift_pct":round(lower_band_drift,2),"median_regime_drop_pct":round(regime_drop,2),
+        "later_floor_wick_breaches":int(later_floor_breaches),
         "support_confirmed_at":eps[1]["bounce_date"],
         "chart":[{"date":str(pd.Timestamp(r.Date).date()),"open":round(float(r.Open),6),"close":round(float(r.Close),6),"high":round(float(r.High),6),"low":round(float(r.Low),6)} for r in d.iloc[max(0,start-15):].itertuples()],
         "range_start":str(pd.Timestamp(x.iloc[0].Date).date()),"range_sessions":int(len(x)),
@@ -194,7 +207,7 @@ def scan(source,cfg):
     for i,r in enumerate(cand,1):r["rank"]=i
     states={}
     for r in cand:states[r["state"]]=states.get(r["state"],0)+1
-    payload={"as_of":str(max(dates).date()) if dates else None,"strategy":{"name":"Validated Post-Decline Ranges","version":6,"floor_zone_pct":cfg.floor_zone_pct,
+    payload={"as_of":str(max(dates).date()) if dates else None,"strategy":{"name":"Validated Post-Decline Ranges","version":7,"floor_zone_pct":cfg.floor_zone_pct,
         "reset_pct":cfg.reset_pct,"decline_threshold_pct":cfg.decline_threshold_pct,
         "description":"Caída seguida de rango con suelo repetido. La tendencia anterior a la caída no limita la selección. Salida descriptiva: niveles, visitas y distancia al suelo."},
         "universe":{"files_scanned":scanned,"valid_series":valid,"candidates":len(cand)},"state_counts":states,"candidates":cand,"config":asdict(cfg)}

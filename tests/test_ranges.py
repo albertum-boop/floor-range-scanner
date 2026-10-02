@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scanner"))
-from scanner import Config, best_candidate
+from scanner import Config, best_candidate, evaluate_window
 
 
 def history(base):
@@ -71,6 +71,25 @@ class RangeTests(unittest.TestCase):
         d = history(base)
         self.assertIsNotNone(best_candidate(d, Config(max_visit_gap_sessions=100)))
         self.assertIsNone(best_candidate(d, Config()))
+
+    def test_a_single_low_wick_inside_a_higher_regime_is_not_a_drop_then_range(self):
+        prior = np.linspace(95, 112, 30)
+        base = np.tile([98, 104, 108, 111, 109, 106, 103, 98.5], 4)
+        d = history(base)
+        for col, delta in [("Open", 0), ("Close", 0), ("High", .6), ("Low", -.6)]:
+            d.loc[:29, col] = prior + delta
+        self.assertIsNotNone(best_candidate(d, Config(min_median_regime_drop_pct=0)))
+        self.assertIsNone(best_candidate(d, Config()))
+
+    def test_two_separate_floor_break_wicks_indicate_a_lowering_floor(self):
+        d = history(np.tile(self.cycle, 5))
+        d.loc[46, "Low"] = 98.9
+        d.loc[62, "Low"] = 98.8
+        self.assertIsNotNone(evaluate_window(d, 30, Config(max_later_floor_wick_breaches=2)))
+        self.assertIsNone(evaluate_window(d, 30, Config()))
+        one_wick = history(np.tile(self.cycle, 5))
+        one_wick.loc[46, "Low"] = 98.2
+        self.assertIsNotNone(best_candidate(one_wick, Config()))
 
 
 
