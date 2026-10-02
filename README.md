@@ -31,7 +31,7 @@ Repositorio: https://github.com/albertum-boop/floor-range-scanner
 
 ## Actualizar datos
 
-GitHub Actions ejecuta `.github/workflows/daily-refresh.yml` todos los días a las **02:00 de Europe/Madrid**, ajustando el cambio de hora. Puede empezar con retraso si GitHub tiene cola. El calendario NYSE selecciona la última sesión cerrada y espera hasta las 18:00 de Nueva York para darla por finalizada. Si esa sesión ya está publicada, no vuelve a descargarla; fines de semana y festivos no generan sesiones ficticias.
+GitHub Actions ejecuta `.github/workflows/daily-refresh.yml` todos los días a las **02:00 de Europe/Madrid**, con un intento de respaldo a las **06:23** por si GitHub retrasa u omite la primera ejecución. Si la sesión ya está publicada, el respaldo termina sin descargarla otra vez. El calendario NYSE selecciona la última sesión cerrada y espera hasta las 18:00 de Nueva York para darla por finalizada; fines de semana y festivos no generan sesiones ficticias.
 
 El proceso descarga 400 días naturales de OHLCV de Yahoo Finance, vuelve a calcular rangos, suelos y revisitas, y guarda JSON y CSV en un commit. La integración Git de Vercel publica ese commit automáticamente. No necesita una API key ni un token de Vercel. La descarga se ejecuta en GitHub, no al abrir la página. Una pestaña abierta comprueba nuevas publicaciones cada 15 minutos y al volver a ella.
 

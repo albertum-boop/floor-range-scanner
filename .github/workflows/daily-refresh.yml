@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: "0 2 * * *"
       timezone: "Europe/Madrid"
+    # Backup when GitHub delays or drops the midnight-hour schedule.
+    - cron: "23 6 * * *"
+      timezone: "Europe/Madrid"
   workflow_dispatch:
     inputs:
       force:
