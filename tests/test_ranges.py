@@ -3,10 +3,11 @@ import hashlib
 import sys
 import unittest
 from pathlib import Path
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scanner"))
-from scanner import Config, MODEL_SHA256, scan
+from scanner import Config, MODEL_SHA256, candidate, model_bars, scan
 
 
 class AuditedRangeTests(unittest.TestCase):
@@ -52,6 +53,13 @@ class AuditedRangeTests(unittest.TestCase):
         self.assertEqual(self.by_ticker["LXU"]["state"], "PENETRACION_PENDIENTE")
         self.assertTrue(all(row["last_confirmed"] == "2026-09-25"
                             for row in self.snapshot["candidates"]))
+
+    def test_broken_candidate_does_not_abort_daily_publication(self):
+        bars = model_bars(pd.read_csv(ROOT / "tests/fixtures/audited/MUSA.csv"), "2026-09-25")
+        episode = {"last_confirmed": "2026-09-25", "status": "recent",
+                   "first_contact": "2026-08-01", "modal_floor_low": 800,
+                   "modal_floor_high": 810}
+        self.assertIsNone(candidate("MUSA", episode, bars, Config()))
 
 
 if __name__ == "__main__":
