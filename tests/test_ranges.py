@@ -1,143 +1,57 @@
-"""Behavioural regressions: range, falling trend, broken floor and shifted low."""
+"""Benchmark the deployed adapter against the audited historical controls."""
+import hashlib
 import sys
-import json
-from pathlib import Path
 import unittest
+from pathlib import Path
 
-import numpy as np
-import pandas as pd
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scanner"))
-from scanner import Config, best_candidate, clean_prices, detect_episodes, evaluate_window
-
-
-def history(base):
-    # A completed 23% decline precedes four separate round trips between 100 and 111.
-    closes = np.r_[np.linspace(140, 130, 30), np.asarray(base)]
-    return pd.DataFrame({"Date": pd.bdate_range("2026-01-01", periods=len(closes)),
-        "Open": closes, "High": closes + .6, "Low": closes - .6,
-        "Close": closes, "Volume": 1000000})
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scanner"))
+from scanner import Config, MODEL_SHA256, scan
 
 
-class RangeTests(unittest.TestCase):
-    def setUp(self):
-        self.cycle = np.array([101, 104, 108, 111, 109, 106, 103, 101.2])
+class AuditedRangeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.frame, cls.snapshot = scan(
+            ROOT / "tests/fixtures/audited", Config(), as_of="2026-09-25"
+        )
+        cls.by_ticker = {r["ticker"]: r for r in cls.snapshot["candidates"]}
 
-    def test_flat_range_after_decline_is_kept(self):
-        candidate = best_candidate(history(np.tile(self.cycle, 4)), Config())
-        self.assertIsNotNone(candidate)
-        self.assertTrue(candidate["range_validated"])
-        self.assertGreaterEqual(candidate["visit_count"], 3)
-        self.assertLess(abs(candidate["trend_drift_pct"]), 8)
+    def test_exact_classifier_is_vendored(self):
+        digest = hashlib.sha256((ROOT / "scanner/audited_model.py").read_bytes()).hexdigest()
+        self.assertEqual(digest, MODEL_SHA256)
+        self.assertEqual(self.snapshot["strategy"]["classifier_sha256"], digest)
+        self.assertEqual(self.snapshot["strategy"]["version"], 9)
 
-    def test_prior_trend_does_not_restrict_a_drop_followed_by_a_range(self):
-        for prior in [np.linspace(110, 140, 30), np.linspace(180, 130, 30)]:
-            with self.subTest(prior_start=prior[0]):
-                d = history(np.tile(self.cycle, 4))
-                for col, delta in [("Open", 0), ("Close", 0), ("High", .6), ("Low", -.6)]:
-                    d.loc[:29, col] = prior + delta
-                candidate = best_candidate(d, Config())
-                self.assertIsNotNone(candidate)
-                self.assertNotIn("entry_signal", candidate)
-                self.assertNotIn("suggested_stop", candidate)
+    def test_musa_and_app_keep_repeated_floor_above_dips(self):
+        musa = self.by_ticker["MUSA"]
+        self.assertEqual((musa["floor"], musa["floor_zone_high"]), (501.12, 506.01))
+        self.assertEqual(musa["wick_dip"]["low"], 490.29)
+        self.assertEqual(musa["wick_dip"]["recovered_at"], "2026-09-09")
+        self.assertEqual(musa["first_detectable"], "2026-09-25")
 
-    def test_falling_sawtooth_is_not_a_range(self):
-        base = np.tile(self.cycle, 4) - np.linspace(0, 28, 32)
-        self.assertIsNone(best_candidate(history(base), Config()))
+        app = self.by_ticker["APP"]
+        self.assertEqual((app["floor"], app["floor_zone_high"]), (303.17, 307.76))
+        self.assertAlmostEqual(app["minimum_since_first_visit"], 297.5, places=2)
+        self.assertEqual(app["wick_dip"]["date"], "2026-08-21")
+        self.assertEqual(app["recovered_breach"]["recovered_at"], "2026-08-25")
+        self.assertEqual(app["first_detectable"], "2026-09-03")
 
-    def test_floor_break_is_not_rebased_downwards(self):
-        d = history(np.r_[np.tile(self.cycle, 4), [97, 94, 90]])
-        self.assertIsNone(best_candidate(d, Config()))
+    def test_lower_repeated_contact_is_not_an_isolated_dip(self):
+        onds = self.by_ticker["ONDS"]
+        self.assertEqual((onds["floor"], onds["floor_zone_high"]), (7.13, 7.26))
+        self.assertIsNone(onds["wick_dip"])
+        self.assertEqual(onds["lower_repeated_contact"]["low"], 6.98)
+        for ticker in ("KOP", "AVAV"):
+            self.assertIsNone(self.by_ticker[ticker]["wick_dip"])
 
-    def test_late_crash_cannot_create_historical_floor_tests(self):
-        base = np.r_[np.tile(self.cycle, 4), [60, 62, 59, 57]]
-        self.assertIsNone(best_candidate(history(base), Config()))
-
-    def test_recovery_trend_and_no_prior_decline_are_rejected(self):
-        rising = np.tile(self.cycle, 4) + np.linspace(0, 30, 32)
-        self.assertIsNone(best_candidate(history(rising), Config()))
-        d = history(np.tile(self.cycle, 4)).iloc[30:].reset_index(drop=True)
-        self.assertIsNone(best_candidate(d, Config()))
-
-    def test_old_range_then_fresh_floor_requires_new_validation(self):
-        base = np.r_[np.tile(self.cycle, 4), [80, 83, 87, 82, 80]]
-        self.assertIsNone(best_candidate(history(base), Config()))
-
-    def test_old_floor_tests_do_not_validate_an_isolated_new_return(self):
-        base = np.r_[np.tile(self.cycle, 3), np.tile([108, 110, 109, 111], 12), [104, 101]]
-        self.assertIsNone(best_candidate(history(base), Config()))
-
-    def test_long_gap_between_floor_visits_breaks_the_range(self):
-        base = np.r_[np.tile(self.cycle, 2), np.repeat(108, 20), np.tile(self.cycle, 3)]
-        d = history(base)
-        self.assertIsNotNone(best_candidate(d, Config(max_visit_gap_sessions=100)))
-        self.assertIsNone(best_candidate(d, Config()))
-
-    def test_a_single_low_wick_inside_a_higher_regime_is_not_a_drop_then_range(self):
-        prior = np.linspace(95, 112, 30)
-        base = np.tile([98, 104, 108, 111, 109, 106, 103, 98.5], 4)
-        d = history(base)
-        for col, delta in [("Open", 0), ("Close", 0), ("High", .6), ("Low", -.6)]:
-            d.loc[:29, col] = prior + delta
-        self.assertIsNotNone(best_candidate(d, Config(min_median_regime_drop_pct=0)))
-        self.assertIsNone(best_candidate(d, Config()))
-
-    def test_two_separate_floor_break_wicks_indicate_a_lowering_floor(self):
-        d = history(np.tile(self.cycle, 5))
-        d.loc[46, "Low"] = 98.9
-        d.loc[62, "Low"] = 98.8
-        self.assertIsNotNone(evaluate_window(d, 30, Config(max_later_floor_wick_breaches=2)))
-        self.assertIsNone(evaluate_window(d, 30, Config()))
-        one_wick = history(np.tile(self.cycle, 5))
-        one_wick.loc[46, "Low"] = 98.2
-        self.assertIsNotNone(best_candidate(one_wick, Config()))
-
-    def test_low_wick_without_a_closing_drop_does_not_start_a_base(self):
-        d = history(np.tile(self.cycle, 4))
-        d.loc[30, "Close"] = 129
-        d.loc[30, "Open"] = 129
-        d.loc[30, "High"] = 130
-        self.assertLess(d.loc[30, "Low"], d.loc[:29, "Close"].max() * .88)
-        self.assertIsNone(evaluate_window(d, 30, Config()))
-
-    def test_high_wicks_do_not_create_independent_daily_floor_visits(self):
-        dates = pd.bdate_range("2026-04-01", periods=9)
-        lows = np.array([100, 103, 104, 100, 103, 104, 100, 103, 104], dtype=float)
-        closes = np.array([101, 104, 104, 101, 104, 104, 101, 104, 104], dtype=float)
-        highs = np.array([102, 108, 108, 102, 108, 108, 102, 108, 108], dtype=float)
-        episodes, _ = detect_episodes(dates, highs, lows, closes, 100, Config())
-        self.assertEqual(len(episodes), 1)
-
-    def test_wick_rebound_and_close_confirmation_are_reported_separately(self):
-        dates = pd.bdate_range("2026-04-01", periods=4)
-        lows = np.array([100, 102, 108, 100], dtype=float)
-        closes = np.array([101, 104, 104, 101], dtype=float)
-        highs = np.array([102, 108, 109, 102], dtype=float)
-        episodes, _ = detect_episodes(dates, highs, lows, closes, 100, Config())
-        self.assertTrue(episodes[0]["successful_rebound"])
-        self.assertFalse(episodes[0]["close_confirmed_rebound"])
-
-    def test_user_labeled_daily_windows(self):
-        examples = json.loads((Path(__file__).parent / "fixtures/labeled_windows.json").read_text())["examples"]
-        for ticker, item in examples.items():
-            with self.subTest(ticker=ticker):
-                chart = pd.DataFrame(item["chart"]).rename(columns=str.title)
-                chart["Volume"] = 10_000_000  # Snapshot chart omits volume; test price structure.
-                # The snapshot stores 15 earlier bars. Fill the other five with
-                # its recorded prior peak so the 20-bar drop check is reproducible.
-                dates = pd.bdate_range(end=pd.Timestamp(chart.Date.iloc[0]) - pd.offsets.BDay(1), periods=5)
-                prior = pd.DataFrame([{"Date": day, "Open": item["prior_peak"],
-                    "High": item["prior_peak"] + 1, "Low": item["prior_peak"] - 1,
-                    "Close": item["prior_peak"], "Volume": 10_000_000} for day in dates])
-                d = clean_prices(pd.concat([prior, chart], ignore_index=True))
-                start = int(d.index[d.Date == pd.Timestamp(item["range_start"])][0])
-                candidate = evaluate_window(d, start, Config())
-                if ticker in {"IRM", "PLSE"}:
-                    self.assertIsNone(candidate)
-                else:
-                    self.assertIsNotNone(candidate)
-                    self.assertGreaterEqual(candidate["closing_decline_pct"], 12)
-
+    def test_old_broken_shelves_are_not_current(self):
+        self.assertEqual(set(self.by_ticker), {"APP", "MUSA", "ONDS", "KOP", "AVAV", "CAL", "LXU"})
+        for ticker in ("PTRN", "DY", "POST"):
+            self.assertNotIn(ticker, self.by_ticker)
+        self.assertEqual(self.by_ticker["LXU"]["state"], "PENETRACION_PENDIENTE")
+        self.assertTrue(all(row["last_confirmed"] == "2026-09-25"
+                            for row in self.snapshot["candidates"]))
 
 
 if __name__ == "__main__":

@@ -4,3 +4,6 @@
 
 
 .s-en_rango{background:#e9edf0;color:#4d5b64}
+.s-penetracion_pendiente{background:#fff0d8;color:#8a5116}
+.episode-row span:first-child{overflow-wrap:anywhere}
+.pricebox strong{font-size:clamp(17px,3vw,24px)}
