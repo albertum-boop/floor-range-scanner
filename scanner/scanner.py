@@ -93,7 +93,11 @@ def candidate(ticker, episode, bars, cfg):
     low = float(bars.Low.iloc[-1])
     recent = base.Close.tail(3).to_numpy(float)
     if close < floor * .97 or int(np.sum(recent < floor * .99)) >= 2:
-        raise ValueError(f"{ticker}: confirmed support violates the break rule")
+        # The historical classifier can retain an episode whose original first
+        # contact predates the latest proposal. If the current bars contradict
+        # its rounded support, exclude this candidate without aborting the
+        # complete daily snapshot.
+        return None
     distance = 100 * (close / floor - 1)
     if close < floor:
         state = "PENETRACION_PENDIENTE"
