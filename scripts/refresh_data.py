@@ -125,8 +125,8 @@ def publish_snapshot(directory, output, symbols, good, errors, cutoff, now, mini
     coverage = len(good) / len(symbols)
     if coverage < minimum_coverage:
         raise RuntimeError(f"Coverage {coverage:.1%} below {minimum_coverage:.0%}; previous snapshot retained")
-    frame, payload = scan(directory, Config.from_json(ROOT / "scanner/config.json"))
     expected = cutoff.date().isoformat()
+    frame, payload = scan(directory, Config.from_json(ROOT / "scanner/config.json"), as_of=expected)
     if payload["as_of"] != expected or any(row["as_of"] != expected for row in payload["candidates"]):
         raise RuntimeError("Snapshot contains an incorrect market date")
     quality = {"expected_session": expected, "requested": len(symbols), "valid": len(good),
@@ -158,7 +158,9 @@ def main():
     cutoff = latest_completed_session(now)
     symbols = load_universe(args.universe)
     fingerprint = hashlib.sha256(args.universe.read_bytes() + (ROOT / "scanner/config.json").read_bytes()
-        + (ROOT / "scanner/scanner.py").read_bytes() + Path(__file__).read_bytes()).hexdigest()
+        + (ROOT / "scanner/scanner.py").read_bytes()
+        + (ROOT / "scanner/audited_model.py").read_bytes()
+        + Path(__file__).read_bytes()).hexdigest()
     current = args.output / "current.json"
     if current.exists():
         previous = json.loads(current.read_text())

@@ -18,21 +18,20 @@
     <section class="hero">
       <div>
         <p class="eyebrow">Revisitas de soporte tras caída</p>
-        <h1>Después de la caída.<br><em>Un suelo que se mantiene.</em></h1>
-        <p>Detecta caídas seguidas de un rango, cualquiera que sea la tendencia anterior. Consulta el suelo, sus visitas y la distancia del precio actual al suelo.</p>
+        <h1>El suelo habitual.<br><em>El mínimo puntual.</em></h1>
+        <p>Clasifica zonas de rebote después de una caída y separa el soporte recurrente de las mechas, las penetraciones recuperadas y los contactos inferiores repetidos.</p>
       </div>
       <div class="hero-number"><strong id="candidateCount">—</strong><span>patrones detectados</span><small id="universeText">—</small></div>
     </section>
 
     <section id="method" class="method hidden">
-      <h3>Caída → rango → distancia al suelo</h3>
-      <p>La tendencia anterior a la caída puede ser alcista, bajista o lateral. Se evalúa si después de esa caída aparece un rango con suelo repetido.</p>
-      <p>Primero exige una caída de al menos <b>12% en el cierre</b> respecto al máximo de cierre de las 20 sesiones anteriores al inicio de la base. Después exige al menos <b>15 sesiones</b> y <b>3 visitas independientes</b>, sin huecos de más de <b>12 sesiones</b> desde el final de una visita hasta la siguiente. En las últimas <b>40 sesiones</b> debe haber al menos <b>3 visitas</b>, dos de ellas ya seguidas de un rebote ≥5%; los contactos antiguos no bastan. Las dos primeras pruebas deben rebotar ≥5% en un máximo de 5 sesiones; fijan el soporte <b>F</b>. Una nueva visita requiere que antes el precio cierre al menos un 5% por encima de F: una mecha alta aislada no reinicia la visita.</p>
-      <p>La mediana de los cierres del rango debe quedar al menos un 8% por debajo del máximo previo: un mínimo aislado dentro de una zona alta no define la caída. Se rechazan cierres posteriores por debajo de F, dos o más visitas independientes con mínimos más de un 1% por debajo de las dos primeras pruebas, pruebas de suelo dispersas más de 3,5%, deterioro de la banda inferior y rangos de amplitud superior al 25%. La deriva de la recta de tendencia del precio se limita al menor valor entre 8% y la mitad de la amplitud del rango. El techo es el percentil 85 de los máximos. Liquidez mediana ≥ $2M/día.</p>
-      <p>«Visitando suelo» indica un cierre dentro de [F, F·1,035] y contacto con esa zona. «Cerca del suelo» indica un cierre hasta un 5% sobre F; los demás casos figuran como «En rango». Inicialmente se muestran todos los patrones ordenados por evidencia estructural: duración, revisitas separadas, rebotes, estabilidad y dispersión de mínimos. Para ver sólo los cercanos, establece «Dist. máx.» en 5%. La proximidad se muestra aparte y puede usarse para ordenar. Los rebotes de la tabla se miden del mínimo al máximo intradía; la ficha muestra cuántos superaron el 5% también en el cierre. Esa puntuación describe la forma del gráfico, no una probabilidad de ganar. SES, APP y SGI son referencias y sólo aparecen cuando cumplen los criterios.</p>
+      <h3>Modelo auditado: caída → banda recurrente → incursiones</h3>
+      <p>El detector busca una caída previa de al menos <b>12%</b> desde el pico de hasta 80 sesiones, forma una base de hasta 35 sesiones y exige <b>tres visitas independientes</b> dentro de una banda estrecha (anchura máxima 2,2%). Dos visitas anteriores han de rebotar al menos <b>3,5% en cierre</b> dentro de las diez sesiones siguientes. El techo es el percentil 78 de los máximos de la base.</p>
+      <p>Una mecha más de 1,3% bajo la banda se registra como dip sólo al observar su recuperación. Un cierre bajo la banda recuperado más tarde se distingue como penetración recuperada. Si aparecen mínimos inferiores similares repetidamente, se informa como <b>contacto inferior recurrente</b> y deja de ser un dip aislado. Cierres profundos o persistentes invalidan el soporte anterior. Las fechas de detección y recuperación evitan atribuir al pasado información que aún no se conocía.</p>
+      <p>El rango mostrado debe tener confirmación en la sesión indicada. La banda es estadística; el mínimo de la base aparece aparte. «Penetración pendiente» indica cierre bajo el borde inferior que aún no ha invalidado el rango. La puntuación es una heurística descriptiva, no una probabilidad calibrada ni una señal de compra. Se usa el mismo clasificador auditado en todo el universo; la clasificación estructural todavía no es un backtest con entradas y stops.</p>
     </section>
 
-    <section id="validationNotice" class="method hidden" role="status"><b>Clasificación anterior retirada.</b> Los resultados anteriores no comprobaban suficientemente la lateralidad. Se mostrarán nuevos tickers cuando termine el análisis con el detector corregido.</section>
+    <section id="validationNotice" class="method hidden" role="status"><b>Esperando la primera actualización del modelo auditado.</b> Los datos del detector anterior no se presentan como si fueran la nueva clasificación.</section>
 
     <section class="benchmarks">
       <div><span>REFERENCIAS</span><strong>SES · APP · SGI</strong></div>
@@ -42,14 +41,15 @@
     <section class="stats">
       <div><span>Visitando suelo</span><strong id="statTouching">—</strong></div>
       <div><span>Cerca del suelo</span><strong id="statNear">—</strong></div>
-      <div><span>≥5 visitas</span><strong id="statFive">—</strong></div>
-      <div><span>Zona</span><strong id="statZone">—</strong></div>
+      <div><span>Con dip recuperado</span><strong id="statFive">—</strong></div>
+      <div><span>Penetración pendiente</span><strong id="statZone">—</strong></div>
     </section>
 
     <section class="controls">
       <input id="search" placeholder="Buscar ticker…" />
       <select id="stateFilter">
         <option value="VISITANDO_SUELO">Visitando suelo</option>
+        <option value="PENETRACION_PENDIENTE">Penetración pendiente</option>
         <option value="CERCA_DEL_SUELO">Cerca del suelo</option>
         <option value="EN_RANGO">En rango</option>
         <option value="TODOS" selected>Todos los estados</option>
@@ -66,7 +66,7 @@
     <div class="resultbar"><b id="resultCount">0</b> <span id="resultContext">de 0 patrones · 0 a ≤5% del suelo</span></div>
     <section class="table-wrap">
       <table>
-        <thead><tr><th>#</th><th>Ticker</th><th>Posición en el rango</th><th>Suelo / zona</th><th>Visitas</th><th>Rebotes ≥5%</th><th>Estructura</th><th>Cierre</th><th>Dist. F</th><th>Techo estimado</th></tr></thead>
+        <thead><tr><th>#</th><th>Ticker</th><th>Posición</th><th>Suelo habitual</th><th>Mín. base</th><th>Incursión inferior</th><th>Visitas</th><th>Evidencia</th><th>Cierre</th><th>Dist. F</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </section>
